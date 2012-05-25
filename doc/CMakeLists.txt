@@ -25,16 +25,18 @@ if( NOT DB_MANPAGES_STYLESHEET )
 endif( NOT DB_MANPAGES_STYLESHEET )
 
 add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/glite_cream_load_monitor.1.gz
-                          ${CMAKE_CURRENT_BINARY_DIR}/glite-ce-cream-purge-proxy.1.gz
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/glite_cream_load_monitor.xml
-                           ${CMAKE_CURRENT_SOURCE_DIR}/glite-ce-cream-purge-proxy.xml
                    COMMAND xsltproc -o ${CMAKE_CURRENT_BINARY_DIR}/glite_cream_load_monitor.1
                                     ${DB_MANPAGES_STYLESHEET} 
                                     ${CMAKE_CURRENT_SOURCE_DIR}/glite_cream_load_monitor.xml
+                   COMMAND gzip -f ${CMAKE_CURRENT_BINARY_DIR}/glite_cream_load_monitor.1)
+
+add_custom_command(OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/glite-ce-cream-purge-proxy.1.gz
+                   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/glite-ce-cream-purge-proxy.xml
                    COMMAND xsltproc -o ${CMAKE_CURRENT_BINARY_DIR}/glite-ce-cream-purge-proxy.1
                                     ${DB_MANPAGES_STYLESHEET} 
                                     ${CMAKE_CURRENT_SOURCE_DIR}/glite-ce-cream-purge-proxy.xml
-                   COMMAND gzip ${CMAKE_CURRENT_BINARY_DIR}/*.1)
+                   COMMAND gzip -f ${CMAKE_CURRENT_BINARY_DIR}/glite-ce-cream-purge-proxy.1)
                    
 add_custom_target(manpages ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/glite_cream_load_monitor.1.gz
                                        ${CMAKE_CURRENT_BINARY_DIR}/glite-ce-cream-purge-proxy.1.gz)
