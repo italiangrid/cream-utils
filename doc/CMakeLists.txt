@@ -42,7 +42,8 @@ add_custom_target(manpages ALL DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/glite_cream_l
 
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/
         DESTINATION usr/share/man/man1
-        FILES_MATCHING PATTERN "*.1.gz")
+        FILES_MATCHING PATTERN "*.1.gz"
+        PATTERN "CMakeFiles" EXCLUDE)
 
 
 
