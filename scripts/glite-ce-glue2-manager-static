@@ -1,0 +1,200 @@
+#!/usr/bin/perl -w
+#
+# glite-ce-glue2-manager-static: an information provider for the
+# static part of the Manager object, in v 2.0 of the GLUE schema
+# It can be installed as a gip provider or, even better, it can be called
+# just once to produce a ldif part to be installed in the ldif
+# gip directory
+#
+# Author: Massimo Sgaravatto
+#
+# Ref: http://www.ogf.org/documents/GFD.147.pdf
+#      http://glue20.web.cern.ch/glue20/
+# Copyright (c) Members of the EGEE Collaboration. 2010.
+# See http://www.eu-egee.org/partners/ for details on the copyright
+# holders.
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+use strict;
+use FileHandle;
+use POSIX qw(strftime);
+
+#
+# Version number for this code
+my $version = "1.0";
+
+
+my $host = `hostname -f`;
+chomp($host);
+
+my $confile;
+
+# Read in the configuration file (first argument)
+
+my %config = (
+        ComputingServiceId => '',
+        CE_BATCH_SYS => '',
+        BATCH_VERSION => '',
+	      );
+
+if ($ARGV[0]){
+    $confile = $ARGV[0];
+    my $fh = new FileHandle $confile
+        or die "Error: Can't open configuration file: $ARGV[0]\n";
+    foreach (<$fh>){
+        if ((! m/^\#/) & (m/=/)){
+# For lines containing an = and not starting with #
+            m/^(.*?)=\s*(.*)\s*$/;
+# Split on the first =, no leading or trailing whitespace in the value
+            my $key=$1;
+            my $value=$2;
+            $key=~s/\s+//g;
+            $config{$key}=$value;
+	}
+    }
+}else{
+    print STDERR "Usage: glite-ce-glue2-manager-static <config-file> \n";
+    exit 1;
+}
+
+
+# Get service id from conf file
+my $ServiceID = $config{ComputingServiceId};
+
+# No white space. No "
+$ServiceID =~ s/\s+//g;
+$ServiceID =~ s/\"//g;
+
+# ManagerId is ServiceId + "_Manager"
+my $ManagerId = $ServiceID . "_Manager";
+
+my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
+
+# Now start outputting LDIF lines for the Manager object.
+# Note that once we get here we are committed to printing a
+# complete, valid object. Start with the DN ...
+
+print "dn: GLUE2ManagerId=$ManagerId,$bind_dn\n";
+
+# Print the boilerplate objectclass declarations and unique ID
+
+print "objectClass: GLUE2Entity\n";
+print "objectClass: GLUE2Manager\n";
+print "objectClass: GLUE2ComputingManager\n";
+
+# Times are mandated to be UTC only
+my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
+print "GLUE2EntityCreationTime: $TimeNow\n";
+
+# No validity, since this is static info
+
+# Manager Id
+print "GLUE2ManagerID: $ManagerId\n";
+
+# The name is just an indicative human-readable string.
+print "GLUE2EntityName: Computing Manager on $host\n";
+
+# Embed some metadata to help with debugging
+
+print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-manager-static\n";
+print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
+print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
+
+# ProductName
+my $GLUE2ManagerProductName = $config{CE_BATCH_SYS};
+
+# No leading and traling spaces. No "
+$GLUE2ManagerProductName =~ s/^\s+//;
+$GLUE2ManagerProductName =~ s/\s+$//;
+$GLUE2ManagerProductName =~ s/\"//g;
+
+print "GLUE2ManagerProductName: $GLUE2ManagerProductName\n";
+
+# ProductVersion is provided by read by config file (which in turn is
+# filled with yaim variable BATCH_VERSION
+# The value can be overridden 
+
+my $GLUE2ManagerProductVersion = $config{BATCH_VERSION};
+
+# No leading and traling spaces. No "
+$GLUE2ManagerProductVersion =~ s/^\s+//;
+$GLUE2ManagerProductVersion =~ s/\s+$//;
+$GLUE2ManagerProductVersion =~ s/\"//g;
+
+print "GLUE2ManagerProductVersion: $GLUE2ManagerProductVersion\n";
+
+
+my $GLUE2ManagerWorkingAreaShared = $config{WorkingAreaShared};
+if (defined $GLUE2ManagerWorkingAreaShared)
+{
+ # Convert in uppercase (glue2 is case sensitive)
+ $GLUE2ManagerWorkingAreaShared = uc $GLUE2ManagerWorkingAreaShared;
+ print "GLUE2ComputingManagerWorkingAreaShared: $GLUE2ManagerWorkingAreaShared\n";
+}
+
+my $GLUE2ManagerWorkingAreaGuaranteed = $config{WorkingAreaGuaranteed};
+if (defined $GLUE2ManagerWorkingAreaGuaranteed)
+{
+ # Convert in uppercase (glue2 is case sensitive)
+ $GLUE2ManagerWorkingAreaGuaranteed = uc $GLUE2ManagerWorkingAreaGuaranteed;
+ print "GLUE2ComputingManagerWorkingAreaGuaranteed: $GLUE2ManagerWorkingAreaGuaranteed\n";
+}
+
+my $GLUE2ManagerWorkingAreaTotal = $config{WorkingAreaTotal};
+if (defined $GLUE2ManagerWorkingAreaTotal)
+{
+ print "GLUE2ComputingManagerWorkingAreaTotal: $GLUE2ManagerWorkingAreaTotal\n";
+}
+
+my $GLUE2ManagerWorkingAreaFree = $config{WorkingAreaFree};
+if (defined $GLUE2ManagerWorkingAreaFree)
+{
+ print "GLUE2ComputingManagerWorkingAreaFree: $GLUE2ManagerWorkingAreaFree\n";
+}
+
+my $GLUE2ManagerWorkingAreaLifeTime = $config{WorkingAreaLifeTime};
+if (defined $GLUE2ManagerWorkingAreaLifeTime)
+{
+ print "GLUE2ComputingManagerWorkingAreaLifeTime: $GLUE2ManagerWorkingAreaLifeTime\n";
+}
+
+my $GLUE2ManagerWorkingAreaMultiSlotTotal = $config{WorkingAreaMultiSlotTotal};
+if (defined $GLUE2ManagerWorkingAreaMultiSlotTotal)
+{
+ print "GLUE2ComputingManagerWorkingAreaMultiSlotTotal: $GLUE2ManagerWorkingAreaMultiSlotTotal\n";
+}
+
+my $GLUE2ManagerWorkingAreaMultiSlotFree = $config{WorkingAreaMultiSlotFree};
+if (defined $GLUE2ManagerWorkingAreaMultiSlotFree)
+{
+ print "GLUE2ComputingManagerWorkingAreaMultiSlotFree: $GLUE2ManagerWorkingAreaMultiSlotFree\n";
+}
+
+my $GLUE2ManagerWorkingAreaMultiSlotLifeTime = $config{WorkingAreaMultiSlotLifeTime};
+if (defined $GLUE2ManagerWorkingAreaMultiSlotLifeTime)
+{
+ print "GLUE2ComputingManagerWorkingAreaMultiSlotLifeTime: $GLUE2ManagerWorkingAreaMultiSlotLifeTime\n";
+}
+
+
+
+# Finally print the upward link to the parent Service
+print "GLUE2ManagerServiceForeignKey: $ServiceID\n";
+print "GLUE2ComputingManagerComputingServiceForeignKey: $ServiceID\n";
+
+# Print a newline to finish the object
+print "\n";
+
+exit 0;
+

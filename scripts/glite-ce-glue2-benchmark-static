@@ -1,0 +1,169 @@
+#!/usr/bin/perl -w
+# glite-ce-glue2-benchmark-static: an information provider for the
+# static part of the Benchmark object, in v 2.0 of the GLUE schema
+# It can be installed as a gip provider or, even better, it can be called
+# just once to produce a ldif part to be installed in the ldif
+# gip directory
+#
+# Ref: http://www.ogf.org/documents/GFD.147.pdf
+#      http://glue20.web.cern.ch/glue20/
+# Copyright (c) Members of the EGEE Collaboration. 2010.
+# See http://www.eu-egee.org/partners/ for details on the copyright
+# holders
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+use strict;
+use FileHandle;
+use POSIX qw(strftime);
+
+#
+# Version number for this code
+my $version = "1.0";
+
+
+my $host = `hostname -f`;
+chomp($host);
+
+my $confile;
+
+# Read in the configuration file (first argument)
+
+my %config = (
+              ComputingServiceId => '',
+              Benchmarks => '',
+              );
+
+
+if ($ARGV[0]){
+    $confile = $ARGV[0];
+    my $fh = new FileHandle $confile
+	or die "Error: Can't open configuration file: $ARGV[0]\n";
+    foreach (<$fh>){
+	if ((! m/^\#/) & (m/=/)){
+# For lines containing an = and not starting with #
+            m/^(.*?)=\s*(.*)\s*$/;
+# Split on the first =, no leading or trailing whitespace in the value
+            my $key=$1;
+            my $value=$2;
+            $key=~s/\s+//g;
+            $config{$key}=$value;
+        }
+    }
+}else{
+    print STDERR "Usage: glite-ce-glue2-benchmark-static <config-file> \\
+n";
+    exit 1;
+}
+
+
+# Times are mandated to be UTC only
+my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
+
+# Get service id from conf file
+my $ServiceID = $config{ComputingServiceId};
+
+# No white space. No "
+$ServiceID =~ s/\s+//g;
+$ServiceID =~ s/\"//g;
+
+# Read EEs from conf file
+my $ExecutionEnvironments = $config{ExecutionEnvironments};
+
+#No leading and traling spaces. No "
+$ExecutionEnvironments =~ s/^\s+//;
+$ExecutionEnvironments =~ s/\s+$//;
+$ExecutionEnvironments =~ s/\"//g;
+
+# Get list of EEs. Separator is ,
+my @listofEE = split /,/, $ExecutionEnvironments;
+
+my $ResourceID;
+
+foreach $ResourceID (@listofEE)
+{
+ #strip (, ), leading and trailing spaces
+ $ResourceID =~ s/\(//g;
+ $ResourceID =~ s/\)//g;
+ $ResourceID =~ s/^\s+//;
+ $ResourceID =~ s/\s+$//;
+
+ my $bind_dn = "GLUE2ResourceID=$ResourceID,GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
+
+ # Read Benchmarks from conf file
+ my $valuetoread = "ExecutionEnvironment_" . $ResourceID . "_Benchmarks"; 
+ my $Benchmarks = $config{$valuetoread};
+
+ #No leading and traling spaces. No "
+ $Benchmarks =~ s/^\s+//;
+ $Benchmarks =~ s/\s+$//;
+ $Benchmarks =~ s/\"//g;
+
+ # Get list of Benchmarks. Separator is ,
+
+ my @listofbench = split /,/, $Benchmarks;
+ my $Bench;
+ foreach $Bench (@listofbench)
+  {
+    #strip (, ), leading and trailing spaces
+    $Bench =~ s/\(//g;
+    $Bench =~ s/\)//g;
+    $Bench =~ s/^\s+//;
+    $Bench =~ s/\s+$//;
+
+     # split the elements of a Benchmark, which is in the format
+    # Type, Value
+    my @ItemsoBench = split /\s+/, $Bench;
+
+    # Now start outputting LDIF lines for the Benchmark object.
+    # Note that once we get here we are committed to printing a
+    # complete, valid object. Start with the DN ..
+
+    # GLUE2BenchmarkId: concatenation of ResourceId and type of benchmark
+    my $GLUE2BenchmarkID = $ResourceID . "_$ItemsoBench[0]";
+
+    print "dn: GLUE2BenchmarkID=$GLUE2BenchmarkID,$bind_dn\n";
+
+    # Print the boilerplate objectclass declarations and unique ID
+    print "objectClass: GLUE2Entity\n";
+    print "objectClass: GLUE2Benchmark\n";
+
+     # Id
+     print "GLUE2BenchmarkID: $GLUE2BenchmarkID\n";
+     
+     print "GLUE2EntityCreationTime: $TimeNow\n";
+
+    # No validity, since this is static info
+
+    # Embed some metadata to help with debugging
+    print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-benchmark-static\n";
+    print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
+    print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
+
+    print "Glue2EntityName: Benchmark $ItemsoBench[0]\n";
+
+    # Type and value of benchmark
+    print "GLUE2BenchmarkType: $ItemsoBench[0]\n";
+    print "GLUE2BenchmarkValue: $ItemsoBench[1]\n";
+
+    # Finally print the upward links
+    print "GLUE2BenchmarkExecutionEnvironmentForeignKey: $ResourceID\n";
+
+    # ManagerId is ServiceId + "_Manager"
+    my $ManagerId = $ServiceID . "_Manager";
+    print "GLUE2BenchmarkComputingManagerForeignKey: $ManagerId\n";
+
+    # Print a newline to finish the object
+    print "\n";
+}
+}
+exit 0;

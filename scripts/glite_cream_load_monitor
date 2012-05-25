@@ -1,0 +1,545 @@
+#!/usr/bin/perl                                                               
+#
+#Copyright (c) Members of the EGEE Collaboration. 2004-2009. 
+#See http://www.eu-egee.org/partners/ for details on the copyright
+#holders.  
+#
+#    Licensed under the Apache License, Version 2.0 (the "License"); 
+#you may not use this file except in compliance with the License. 
+#You may obtain a copy of the License at 
+#
+#  http://www.apache.org/licenses/LICENSE-2.0 
+#
+#Unless required by applicable law or agreed to in writing, software 
+#distributed under the License is distributed on an "AS IS" BASIS, 
+#WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+#See the License for the specific language governing permissions and 
+#limitations under the License.
+#
+#
+############################################
+# Calculates some system values (load, memory, etc.) and compare them
+# with some thresholds read from a conf file
+# To be used by CREAM to disable new job submissions if the "load" is too high
+# Based on glite_wms_wmproxy_load_monitor implemented by Massimo Mezzadri
+
+
+use FileHandle;
+
+require Carp;
+require Getopt::Long;
+
+
+
+# Read in the configuration file (first argument)                               
+
+my %config = (
+         Load1 => '',
+         Load5 => '',
+         Load15 => '',
+         MemUsage => '',
+         SwapUsage => '',
+	 FDNum => '',
+         DiskUsage => '',     
+         FTPConn => '',
+         FDTomcatNum => '',
+         ActiveJobs => '',
+         PendingCmds => '',
+              );
+
+
+
+if ($ARGV[0]){
+    $confile = $ARGV[0];
+    my $fh = new FileHandle $confile
+        or die "Error: Can't open configuration file: $ARGV[0]\n";
+    foreach (<$fh>){
+        if ((! m/^\#/) & (m/=/)){
+# For lines containing an = and not starting with #                             
+            m/^(.*?)=\s*(.*)\s*$/;
+# Split on the first =, no leading or trailing whitespace in the value          
+            my $key=$1;
+            my $value=$2;
+            $key=~s/\s+//g;
+            $config{$key}=$value;
+        }
+    }
+}else{
+    print STDERR "Usage: glite_cream_load_monitor <config-file> \n";
+    exit 1;
+}
+
+
+
+#valid keys for %mems:                                                        
+#MemTotal:MemFree:MemShared:Buffers:Cached
+#SwapCached:Active:Inactive:HighTotal:HighFree                                
+#LowTotal:LowFree:SwapTotal:SwapFree                                           
+%mems=();
+
+#valid keys for %load:                                                        
+#1min:5min:15min
+%load=();
+
+#valid keys for %diskusage:
+#each mounted partition
+%diskusage=();
+
+%duwarn=();
+
+#valid keys for %fds:
+#allocated:free:max
+%fds=();
+
+#ftpconn
+$ftpconn=0;
+
+
+%operations=(
+                 'jobRegister'                         => 1,
+                 'jobStart'                            => 1,
+                 'jobSubmit'                           => 1,
+                 'Default'                             => 1
+    );
+
+
+
+# Read default values from configuration file
+
+$Load1 = $config{Load1};
+$Load5 = $config{Load5};
+$Load15 = $config{Load15};
+$MemUsage = $config{MemUsage};
+$SwapUsage = $config{SwapUsage};
+$FDNum = $config{FDNum};
+$DiskUsage = $config{DiskUsage};
+$FTPConn   = $config{FTPConn};
+$FDTomcatNum = $config{FDTomcatNum};
+$ActiveJobs = $config{ActiveJobs};
+$PendingCmds = $config{PendingCmds};
+
+
+$oper      = 'Default';
+$listoper  = 0;
+$show      = 0;
+$test      = 0;
+$help      = 0;
+
+
+$return=Getopt::Long::GetOptions ("load1=f"       => \$Load1,
+                    "load5=f"       => \$Load5,
+                    "load15=f"      => \$Load15,
+                    "memusage=f"    => \$MemUsage,
+                    "swapusage=f"   => \$SwapUsage,
+                    "fdnum=i"       => \$FDNum,
+                    "tomcatfd=i"    => \$FDTomcatNum,
+                    "diskusage=f"   => \$DiskUsage,
+                    "ftpconn=f"     => \$FTPConn,
+                    "activejobs=f"  => \$ActiveJobs,
+                    "pendingcommands=f" => \$PendingCmds,
+                    "oper=s"        => \$oper,
+                    "show"          => \$show,
+                    "test"          => \$test,
+                    "list"          => \$listoper,
+                    "help"          => \$help
+				  );
+            
+exit(1) unless($return);
+
+$oper='Default' if(!defined $operations{$oper});
+
+
+
+&print_help() if($help);
+&print_list() if($listoper);
+
+# Get system load values
+&get_loadaverage();
+
+# Get memory usage
+&get_mem_usage();
+
+# Get free file descriptors
+&get_fd_usage();
+
+# Get file descriptor used by tomcat process
+&get_fdtomcat_usage();
+
+# Get disk usage
+$partptr=GetPartition();
+&get_disk_usage();
+
+# Get number of active gridftp connections
+&get_ftpconn();
+
+#Find DB username and password
+&get_db_user_password();
+
+# Get number of active jobs in the CREAM CE
+&get_activejobs();
+
+# Get number of commands still be to executed
+&get_pendingcmds();
+
+# Compare current values with thresholds
+&calculate_values();
+
+# Simply print current values and thresholds
+&print_show() if($show);
+
+# Print results of evaluation. 
+# Returns 0 if all values are below threshold. 
+# Returns 1 (and print in stderr the reason) otherwise
+&test_threshold() if ($test);
+
+
+######Functions##########   
+
+#
+# Print help
+sub print_help{
+
+    print "Usage:$0 [OPTIONS]...\n";
+    print "\t\t--load1\t\t threshold for load average (1min)\n";
+    print "\t\t--load5\t\t threshold for load average (5min)\n";
+    print "\t\t--load15\t threshold for load average (15min)\n";
+    print "\t\t--memusage\t threshold for memory usage (\%)\n";
+    print "\t\t--swapusage\t threshold for swap usage (\%)\n";
+    print "\t\t--fdnum\t\t threshold for used file descriptor\n";
+    print "\t\t--tomcatfd\t threshold for used file descriptor by tomcat\n";
+    print "\t\t--diskusage\t threshold for disk usage (\%)\n";
+    print "\t\t--ftpconn\t threshold for number of FTP connections\n ";
+    print "\t\t--activejobs\t threshold for number of active jobs\n ";
+    print "\t\t--pendingcommands\t threshold for number of pending commands\n ";
+    print "\t\t--oper\t\t operation to monitor (can be listed with --list)\n";
+    print "\t\t--list\t\t list operation supported\n";
+    print "\t\t--show\t\t show all the current values\n";
+    print "\t\t--test\t\t test current values and compare with thresholds \n";
+    print "\t\t--help\t\t print this help message\n";
+    exit(0);
+}
+
+
+sub print_list{
+
+    print "Operation supported:\n";
+    foreach my $k(sort{$operations{$a}<=>$operations{$b}}(keys %operations)){
+	next if($k eq 'Default');
+	print "$k\n";
+    }
+
+    exit(0);
+
+}
+
+
+# Get system load values
+sub get_loadaverage{
+
+    my $load=`uptime`;
+    chomp $load;
+    ($dummy,$load_values)=split(/load average:/,$load);
+    ($load{'1min'},$load{'5min'},$load{'15min'})=split(/\,/,$load_values);
+}
+
+
+
+# Get free file descriptors
+sub get_fd_usage{
+
+open (IN, '/proc/sys/fs/file-nr') || die "Could not open /proc/sys/fs/file-nr for reading: $!";
+#fd allocated:fd free:fd max                                                                                   
+while (<IN>){
+    if (/(\d+)\s+(\d+)\s+(\d+)/){
+        $fds{'allocated'}=$1;
+	$fds{'free'}=$2;
+	$fds{'max'}=$3;
+    }
+}
+close (IN);
+}
+
+
+# Get file descriptor used by tomcat process
+sub get_fdtomcat_usage{
+
+  my $tomcatpidfile= "/var/run/tomcat5.pid";
+  if (-e $tomcatpidfile) 
+    {
+     my $tomcatpid=`cat /var/run/tomcat5.pid`;
+     chomp $tomcatpid;
+     my $fdtomcatfile= "/proc/" . $tomcatpid . "/fd";
+     $tomcatfd=`ls -l $fdtomcatfile | wc -l`;
+     chomp $tomcatfd;
+    }
+  else {
+        $tomcatfd=0;
+       } 
+}
+
+
+
+# Get memory usage
+sub get_mem_usage{
+
+    open (IN, '/proc/meminfo') || die "Could not open /proc/meminfo for reading: $!";
+    while (<IN>){
+	$mems{$1} = $2 if (/^(\w+):\s*(\d+)\s+kb/i);
+}
+    close (IN);
+}
+
+
+
+# Get disk usage
+sub get_disk_usage{
+
+    foreach (`df -P|grep -v Filesystem`){
+	$diskusage{$3} = $2 if (/^(\S+)\s+\d+\s+\d+\s+\d+\s+(\d+)\%\s+(\S+)/);
+    }
+}
+
+
+
+# Get number of active gridftp connections
+sub get_ftpconn{
+
+    $ftpconn=`netstat -tapn 2>/dev/null| grep -c 2811`;
+    chomp $ftpconn;
+
+}
+
+
+# Find CREAM DB username and password
+sub get_db_user_password{
+    
+    $cecreamxml="/etc/glite-ce-cream/cream-config.xml";
+    my $usepass=`grep -m 1 username $cecreamxml;`;
+    my @fields = split /\"/, $usepass;
+    $userdb=$fields[1];
+    $passworddb=$fields[3];
+    $creamdbname = `grep -m 1 jdbc $cecreamxml | cut -d/ -f 4 | cut -d? -f 1`;
+    chomp( $creamdbname ); #remove newline appended by shell command
+    $dbhost=`grep -m 1 jdbc $cecreamxml | cut -d/ -f 3 | cut -d: -f 1`;
+    chomp( $dbhost ); #remove newline appended by shell command
+}
+
+# Get number of active jobs
+# that is jobs in REGISTERED (0), PENDING (1). IDLE (2), RUNNING (3), REALLY-RUNNING (4), HELD (6)
+sub get_activejobs{
+
+    my $querycmd= "mysql -B --skip-column-names -h " . $dbhost . " -u " . $userdb . " --password=\"" . $passworddb . "\" -e \"use $creamdbname;select count(*) from job_status AS status LEFT OUTER JOIN job_status AS latest ON latest.jobId=status.jobId AND status.id < latest.id WHERE latest.id IS null AND status.type IN ('0','1','2','3','4','6');\"";
+
+    $activejobs=`$querycmd`;
+    chomp $activejobs;
+}
+
+
+
+# Get number of pending commands, that is commands still to be executed
+sub get_pendingcmds{
+
+    my $querycmd= "mysql -B --skip-column-names -h " . $dbhost . " -u " . $userdb . " --password=\"" . $passworddb . "\" -e \"use $creamdbname;select count(*) from command_queue where isScheduled=false;\"";
+
+    $pendingcmds=`$querycmd`;
+    chomp $pendingcmds;
+}
+
+
+
+# Compare current values with thresholds
+sub calculate_values{
+
+    $load1warning  = 0;
+    $load5warning  = 0;
+    $load15warning = 0;
+    $memwarning    = 0;
+    $swapwarning   = 0;
+    $fdwarning     = 0;
+    $fdtomcatwarning = 0;
+    $ftpwarning    = 0;
+    $activejobswarning = 0;
+    $pendingcmdswarning = 0;
+    $memperc       = 0;
+    $swapperc      = 0;
+    $fduse         = 0;
+    $disablecount  = 0;
+
+    if($mems{'MemTotal'} == 0){
+	$memperc=100;
+    }else{
+	$memperc=100*$mems{'Active'}/$mems{'MemTotal'};
+    }
+    if($mems{'SwapTotal'} == 0){
+	$swapperc=100;
+	$SwapUsage=-1;
+    }else{
+	$swapperc=100*($mems{'SwapTotal'}-$mems{'SwapFree'})/$mems{'SwapTotal'};
+    }
+    $fduse=($fds{'max'}-($fds{'allocated'}-$fds{'free'}));
+
+    if(($load{'1min'}>=$Load1) && ($Load1 != -1)){
+	$load1warning = 1;
+	$disablecount++;
+    }
+
+    if(($load{'5min'}>=$Load5) && ($load{'1min'}>$load{'5min'}) && ($Load5 != -1)){
+	$load5warning = 1;
+	$disablecount++;
+    }
+
+    if(($load{'15min'}>=$Load15) && ($load{'1min'}>$load{'15min'}) && ($load{'5min'}>$load{'15min'}) && ($Load15 != -1)){
+	$load15warning = 1;
+	$disablecount++;
+    }
+
+    if(($memperc>=$MemUsage) && ($MemUsage != -1)){
+	$memwarning = 1;
+	$disablecount++;
+    }
+
+    if(($swapperc>=$SwapUsage) && ($SwapUsage != -1)){
+	$swapwarning = 1;
+	$disablecount++;
+    }
+
+    if(($fduse<=$FDNum) && ($FDNum != -1)){
+	$fdwarning  = 1;
+	$disablecount++;
+    }
+
+    if(($tomcatfd>=$FDTomcatNum) && ($FDTomcatNum != -1)){
+	$fdtomcatwarning  = 1;
+	$disablecount++;
+    }
+
+    if(($ftpconn>=$FTPConn) && ($FTPConn != -1)){
+        $ftpwarning  = 1;
+	$disablecount++;
+    }
+
+    if(($activejobs>=$ActiveJobs) && ($ActiveJobs != -1)){
+        $activejobswarning  = 1;
+	$disablecount++;
+    }
+
+
+    if(($pendingcmds>=$PendingCmds) && ($PendingCmds != -1)){
+        $pendingcmdswarning  = 1;
+	$disablecount++;
+    }
+ 
+
+    foreach my $part(@$partptr){
+        chomp $part;
+        if(($diskusage{$part}>=$DiskUsage) && ($DiskUsage != -1)){
+	    $duwarn{$part}=$diskusage{$part};
+	    $disablecount++;
+	}
+    }
+}
+
+
+
+# Print results of evaluation. 
+# Returns 0 if all values are below threshold. 
+# Returns 1 (and print in stderr the reason) otherwise
+sub test_threshold {
+
+    if($load1warning){
+                print STDERR "Threshold for Load Average(1 min): $Load1 => Detected value for Load Average(1 min): $load{'1min'}\n";
+	    }
+
+    if($load5warning){
+                print STDERR "Threshold for Load Average(5 min): $Load5 => Detected value for Load Average(5 min): $load{'5min'}\n";
+	    }
+
+    if($load15warning){
+                print STDERR "Threshold for Load Average(15 min): $Load15 => Detected value for Load Average(15 min): $load{'15min'}\n";
+	    }
+
+
+    if($memwarning){
+                printf STDERR "Threshold for Memory Usage: $MemUsage => Detected value for Memory Usage: %.2f", $memperc;print STDERR "\%\n";
+	    }
+
+    if($swapwarning){
+                printf STDERR "Threshold for Swap Usage: $SwapUsage => Detected value for Swap Usage: %.2f", $swapperc;print STDERR "\%\n";
+	    }
+
+
+    if($fdwarning){
+	print STDERR "Threshold for Free FD: $FDNum => Detected value for Free FD: $fduse\n";
+    }
+
+
+    if($fdtomcatwarning){
+	print STDERR "Threshold for tomcat FD: $FDTomcatNum => Detected value for Tomcat FD: $tomcatfd\n";
+    }
+
+
+    if($ftpwarning){
+                print STDERR "Threshold for FTP Connection: $FTPConn => Detected value for FTP Connection: $ftpconn\n";
+	    }
+
+
+    if($activejobswarning){
+                print STDERR "Threshold for Number of active jobs: $ActiveJobs => Detected value for Number of active jobs: $activejobs\n";
+	    }
+
+
+    if($pendingcmdswarning){
+                print STDERR "Threshold for Number of pending commands: $PendingCmds => Detected value for Number of pending commands: $pendingcmds\n";
+	    }
+
+
+    foreach my $k(@$partptr){
+	if(defined $duwarn{$k}){
+                        print STDERR "Threshold for Disk Usage: $DiskUsage\% => Detected value for Partition $k : $diskusage{$k}\%\n";
+		    }
+    }
+
+    $disablecount >= $operations{$oper} ? exit(1) : exit(0);
+}
+
+
+
+# Print current values and thresholds
+sub print_show{
+
+     print "Threshold for Load Average(1 min): $Load1 => Detected value for Load Average(1 min): $load{'1min'}\n";
+     print "Threshold for Load Average(5 min): $Load5 => Detected value for Load Average(5 min): $load{'5min'}\n";
+     print "Threshold for Load Average(15 min): $Load15 => Detected value for Load Average(15 min): $load{'15min'}\n";
+     printf "Threshold for Memory Usage: $MemUsage => Detected value for Memory Usage: %.2f", $memperc;print "\%\n";
+     printf "Threshold for Swap Usage: $SwapUsage => Detected value for Swap Usage: %.2f", $swapperc;print "\%\n";
+     print "Threshold for Free FD: $FDNum => Detected value for Free FD: $fduse\n";
+     print "Threshold for tomcat FD: $FDTomcatNum => Detected value for Tomcat FD: $tomcatfd\n";
+     print "Threshold for FTP Connection: $FTPConn => Detected value for FTP Connection: $ftpconn\n";
+     print "Threshold for Number of active jobs: $ActiveJobs => Detected value for Number of active jobs: $activejobs\n";
+     print "Threshold for Number of pending commands: $PendingCmds => Detected value for Number of pending commands: $pendingcmds\n";
+
+    foreach my $k(@$partptr){
+                        print "Threshold for Disk Usage: $DiskUsage\% => Detected value for Partition $k : $diskusage{$k}\%\n";
+		    }
+
+}
+
+
+sub GetPartition{
+
+    my @list = ();
+
+    push (@list,`df -P / |grep -v Filesystem|awk -F" " '{ print \$6 }'`);
+    push (@list,`df -P /tmp |grep -v Filesystem|awk -F" " '{ print \$6 }'`);
+    push (@list,`df -P /var/lib/mysql |grep -v Filesystem|awk -F" " '{ print \$6 }'`);
+    push (@list,`df -P /opt |grep -v Filesystem|awk -F" " '{ print \$6 }'`);
+    my %seen = ();
+    foreach my $item (@list) {
+	$seen{$item}++;
+    }
+    my @uniq = keys %seen;
+
+    return \@uniq;
+
+}
+

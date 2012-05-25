@@ -1,0 +1,179 @@
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+          "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" [
+
+    <!ENTITY dhtitle "User Manuals">
+    <!ENTITY dhcommand "glite_cream_load_monitor">
+    <!ENTITY dhsection "1">
+    
+    <!ENTITY dhfirstname "Massimo">
+    <!ENTITY dhsurname "Sgaravatto">
+    <!ENTITY dhemail "massimo.sgaravatto@pd.infn.it">
+    <!ENTITY dhcontrib "Developer of the CREAM tools">
+    
+]>
+
+
+
+<refentry>
+
+    <refentryinfo>
+        <title>&dhtitle;</title>
+        <productname>&dhcommand;</productname>
+        <authorgroup>
+            <author>
+                <firstname>&dhfirstname;</firstname>
+                <surname>&dhsurname;</surname>
+                <contrib>&dhcontrib;</contrib>
+                <address>
+                    <email>&dhemail;</email>
+                </address>
+            </author>
+        </authorgroup>
+    </refentryinfo>
+
+    <refmeta>
+        <refentrytitle>&dhcommand;</refentrytitle>
+        <manvolnum>&dhsection;</manvolnum>
+    </refmeta>
+
+    <refnamediv>
+        <refname>&dhcommand;</refname>
+        <refpurpose>Retrieves a set of statistics from the CREAM service.</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+        <cmdsynopsis>
+            <command>&dhcommand;</command>
+            <arg choice="opt"><option>options</option></arg>
+        </cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+        <title>DESCRIPTION</title>
+        <para>The command <command>&dhcommand;</command> retrieves a set of statistics from the CREAM service.</para>
+        
+                
+    </refsect1>
+
+    <refsect1>
+        <title>OPTIONS</title>
+        <variablelist>
+
+            <varlistentry>
+                <term><option>--load1 <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for load average (1min).</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--load5 <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for load average (5min).</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--load15 <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for load average (15min).</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--memusage <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for memory usage (%).</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--swapusage <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for swap usage (%).</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--fdnum <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for used file descriptor.</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--tomcatfd <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for used file descriptor by tomcat.</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--diskusage <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for disk usage (%).</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--ftpconn <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for number of FTP connections.</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--activejobs <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for number of active jobs.</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--pendingcommands <replaceable class="parameter">threashold</replaceable></option></term>
+                <listitem>
+                    <para>Threshold for number of pending commands.</para>
+                </listitem>
+            </varlistentry>
+            
+            <varlistentry>
+                <term><option>--oper <replaceable class="parameter">operation</replaceable></option></term>
+                <listitem>
+                    <para>Operation to monitor (can be listed with --list).</para>
+                </listitem>
+            </varlistentry>
+            
+            <varlistentry>
+                <term><option>--list</option></term>
+                <listitem>
+                    <para>List operation supported.</para>
+                </listitem>
+            </varlistentry>
+            
+            <varlistentry>
+                <term><option>--show</option></term>
+                <listitem>
+                    <para>Show all the current values.</para>
+                </listitem>
+            </varlistentry>
+            
+            <varlistentry>
+                <term><option>--test</option></term>
+                <listitem>
+                    <para>Test current values and compare with thresholds.</para>
+                </listitem>
+            </varlistentry>
+            
+            <varlistentry>
+                <term><option>--help</option></term>
+                <listitem>
+                    <para>Print this help message.</para>
+                </listitem>
+            </varlistentry>
+            
+        </variablelist>
+
+    </refsect1>
+
+</refentry>
+

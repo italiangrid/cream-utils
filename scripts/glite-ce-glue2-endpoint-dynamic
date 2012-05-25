@@ -1,0 +1,219 @@
+#!/usr/bin/perl -w
+#
+# glite-ce-glue2-endpoint-dynamic: an information provider plugin for the 
+# dynamic part of the Endpoint object, in v 2.0 of the GLUE schema
+# It can be installed as a gip plugin
+#
+# Author: Massimo Sgaravatto, but code heavily copied from
+# glite-info-glue2-endpoint, implemented by Stephen Burke
+#
+# Ref: http://www.ogf.org/documents/GFD.147.pdf
+#      http://glue20.web.cern.ch/glue20/
+# Copyright (c) Members of the EGEE Collaboration. 2010.
+# See http://www.eu-egee.org/partners/ for details on the copyright
+# holders.
+#
+#     Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+use strict;
+use FileHandle;
+use POSIX qw(strftime);
+
+# Hardwire the data validity period to 1 hour for now
+my $validity = "3600";
+
+my $confile;
+my $dbconfile;
+
+
+# Read in the configuration file (first argument)
+
+my %config = (
+        ComputingServiceId => '',
+        HealthStateHelper => '',
+              );
+
+my %dbconfig = (
+        DBHost => '',
+        CreamDBName => '',
+        MinPrivDBUser => '',
+        MinPrivDBPassword => '',
+              );
+
+
+
+if ($ARGV[0]){
+    $confile = $ARGV[0];
+    my $fh = new FileHandle $confile
+	or die "Error: Can't open configuration file: $ARGV[0]\n";
+    foreach (<$fh>){
+        if ((! m/^\#/) & (m/=/)){
+# For lines containing an = and not starting with #
+            m/^(.*?)=\s*(.*)\s*$/;
+# Split on the first =, no leading or trailing whitespace in the value
+            my $key=$1;
+            my $value=$2;
+            $key=~s/\s+//g;
+            $config{$key}=$value;
+        }
+    }
+  if ($ARGV[1]){
+    $dbconfile = $ARGV[1];
+    my $fh1 = new FileHandle $dbconfile
+	or die "Error: Can't open configuration file: $ARGV[1]\n";
+    foreach (<$fh1>){
+	if ((! m/^\#/) & (m/=/)){
+# For lines containing an = and not starting with #
+            m/^(.*?)=\s*(.*)\s*$/;
+# Split on the first =, no leading or trailing whitespace in the value
+            my $key=$1;
+            my $value=$2;
+            $key=~s/\s+//g;
+            $dbconfig{$key}=$value;
+        }
+    }
+} else {
+    print STDERR "Usage: glite-ce-glue2-endpoint-dynamic <config-file> <db-config-file>\n";
+    exit 1;
+}
+} else{     
+    print STDERR "Usage: glite-ce-glue2-endpoint-dynamic <config-file> <db-config-file>\n";
+    exit 1;
+}
+
+
+
+
+my $ServiceID = $config{ComputingServiceId};
+
+# No white space. No "
+$ServiceID =~ s/\s+//g;
+$ServiceID =~ s/\"//g;
+
+my $host = `hostname -f`;
+chomp($host);
+
+my $EndPointId = $host . "_org.glite.ce.CREAM";
+
+
+my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
+
+
+# Now start outputting LDIF lines for the Endpoint object.
+# Note that once we get here we are committed to printing a
+# complete, valid object. Start with the DN ...
+
+print "dn: GLUE2EndpointID=$EndPointId,$bind_dn\n";
+
+# Times are mandated to be UTC only
+my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
+print "GLUE2EntityCreationTime: $TimeNow\n";
+
+# Validity is hardwired above
+print "GLUE2EntityValidity: $validity\n";
+
+
+# Using glite-info-service-test and service tomcatx status to get
+# the state of the service 
+my $helper = $config{HealthStateHelper};
+# No leading and traling spaces. No "
+$helper =~ s/^\s+//;
+$helper =~ s/\s+$//;
+$helper =~ s/\"//g;
+
+# Find tomcat version
+my $tomcat = </etc/tomcat?>;
+$tomcat=~s/\/etc\///g;
+
+
+my $Info = `$helper && /sbin/service $tomcat status`;
+
+my $Status = $? >> 8;
+
+my $Statcode;
+if    ($Status == 0) { $Statcode = "ok" }
+elsif ($Status == 1) { $Statcode = "critical" }
+elsif ($Status == 2) { $Statcode = "warning" }
+elsif ($Status == 3) { $Statcode = "unknown" }
+else                 { $Statcode = "other" }
+print "GLUE2EndpointHealthState: $Statcode\n";
+# Info is now optional
+if ($Info) {
+    trunc($Info);
+    print "GLUE2EndpointHealthStateInfo: $Info\n";
+}
+
+
+
+my $dbhost= $dbconfig{DBHost};
+my $creamdbname = $dbconfig{CreamDBName};
+my $userdb= $dbconfig{MinPrivDBUser};
+my $passworddb = $dbconfig{MinPrivDBPassword};
+
+
+# Check if submissions are disabled. If so, publish draining for 
+# GLUE2EndpointServingState
+# Publish closed if there are some problems with the query
+my $querycmd= "mysql -B --skip-column-names -h " . $dbhost . " -u " . $userdb . " --password=\"" . $passworddb . "\" -e \"use $creamdbname; select submissionEnabled from db_info;;\"";
+
+my $SubmissionEnabled=`$querycmd`;
+chomp ($SubmissionEnabled);
+if ($SubmissionEnabled == 0)
+{
+    print "GLUE2EndpointServingState: production\n";
+}
+elsif (($SubmissionEnabled == 1) || ($SubmissionEnabled == 2)) 
+{
+    print "GLUE2EndpointServingState: draining\n";
+}
+else { # There is something wrong the DB query: publish closed
+    print "GLUE2EndpointServingState: closed\n";
+
+}
+
+
+
+# Check start time
+$querycmd= "mysql -B --skip-column-names -h " . $dbhost . " -u " . $userdb . " --password=\"" . $passworddb . "\" -e \"use $creamdbname; select SUBTIME((select startUpTime from db_info),TIMEDIFF(CURRENT_TIME(),UTC_TIME())) from db_info;;\"";
+
+
+my $StartTime=`$querycmd`;
+chomp ($StartTime);
+
+# Convert in right format
+$StartTime=~s/ /T/;
+$StartTime .= "Z";
+
+print "GLUE2EndpointStartTime: $StartTime\n";
+
+
+##################
+
+
+sub trunc {
+
+# Truncates string attributes to a "reasonable" length, somewhat arbitrarily
+# taken to be 240 chars. Excess text is replaced by the "well-known" error
+# indicator 4444. Also strip leading and trailing spaces, which are unlikely
+# to be useful in any attribute.
+
+    if ($_[0]) {
+        $_[0] =~ s/^\s+//;
+        $_[0] =~ s/\s+$//;
+	if (length($_[0]) > 240) {
+            $_[0] = substr($_[0], 0, 239) . "...4444";
+        }
+    }
+
+}
+

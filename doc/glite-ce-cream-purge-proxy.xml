@@ -1,0 +1,95 @@
+<!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.1.2//EN"
+          "http://www.oasis-open.org/docbook/xml/4.1.2/docbookx.dtd" [
+
+    <!ENTITY dhtitle "User Manuals">
+    <!ENTITY dhcommand "glite-ce-cream-purge-proxy">
+    <!ENTITY dhsection "1">
+    
+    <!ENTITY dhfirstname "Lisa">
+    <!ENTITY dhsurname "Zangrando">
+    <!ENTITY dhemail "lisa.zangrando@pd.infn.it">
+    <!ENTITY dhcontrib "Developer of the CREAM service">
+    
+]>
+
+
+
+<refentry>
+
+    <refentryinfo>
+        <title>&dhtitle;</title>
+        <productname>&dhcommand;</productname>
+        <authorgroup>
+            <author>
+                <firstname>&dhfirstname;</firstname>
+                <surname>&dhsurname;</surname>
+                <contrib>&dhcontrib;</contrib>
+                <address>
+                    <email>&dhemail;</email>
+                </address>
+            </author>
+        </authorgroup>
+    </refentryinfo>
+
+    <refmeta>
+        <refentrytitle>&dhcommand;</refentrytitle>
+        <manvolnum>&dhsection;</manvolnum>
+    </refmeta>
+
+    <refnamediv>
+        <refname>&dhcommand;</refname>
+        <refpurpose>Purge a proxy for a given user.</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+        <cmdsynopsis>
+            <command>&dhcommand;</command>
+            <arg choice="plain"><replaceable><![CDATA[<VO name>]]></replaceable></arg>
+            <arg choice="plain"><replaceable><![CDATA[<DN>]]></replaceable></arg>
+            <arg choice="plain"><replaceable><![CDATA[<filename>]]></replaceable></arg>
+        </cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+        <title>DESCRIPTION</title>
+        <para><command>&dhcommand;</command> purges a proxy for a given user</para>        
+    </refsect1>
+
+    <refsect1>
+        <title>OPTIONS</title>
+        <variablelist>
+
+            <varlistentry>
+                <term><option><replaceable class="parameter"><![CDATA[<VO name>]]></replaceable></option></term>
+                <listitem>
+                    <para>The VO name of the user</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option><replaceable class="parameter"><![CDATA[<DN>]]></replaceable></option></term>
+                <listitem>
+                    <para>The DN of the user.</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option>--help</option></term>
+                <listitem>
+                    <para>Displays command usage.</para>
+                </listitem>
+            </varlistentry>
+
+            <varlistentry>
+                <term><option><replaceable class="parameter"><![CDATA[<filename>]]></replaceable></option></term>
+                <listitem>
+                    <para>The path of the user proxy to remove</para>
+                </listitem>
+            </varlistentry>
+
+        </variablelist>
+    </refsect1>
+
+</refentry>
+
+
