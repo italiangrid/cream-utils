@@ -1,384 +1,211 @@
-#!/usr/bin/perl -w
-#
-# glite-ce-glue2-endpoint-static: an information provider for the 
-# static part of the Endpoint object, in v 2.0 of the GLUE schema
-# It can be installed as a gip provider or, even better, it can be called
-# just once to produce a ldif part to be installed in the ldif
-# gip directory
-#
-# Author: Massimo Sgaravatto, but code heavily copied from
-# glite-info-glue2-endpoint, implemented by Stephen Burke
-#
-# Ref: http://www.ogf.org/documents/GFD.147.pdf
-#      http://glue20.web.cern.ch/glue20/
-# Copyright (c) Members of the EGEE Collaboration. 2010.
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
 # See http://www.eu-egee.org/partners/ for details on the copyright
-# holders.
+# holders.  
 #
-#     Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0 
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
 # limitations under the License.
 
-use strict;
-use FileHandle;
-use POSIX qw(strftime);
+import sys
+import re
+import socket
+import time
+import shlex
+import subprocess
+
+def trunc(inStr):
+    tmps = inStr.strip()
+    if len(tmps) > 240:
+        return tmps[0:239] + "...4444"
+    else:
+        return tmps
+
+def main():
+
+    pRegex = re.compile('^\s*([^=\s]+)\s*=([^$]+)$')
+
+    config = {}
+    
+    conffile = None
+    foundErr = False
+    try:
+        if len(sys.argv) <> 2:
+            raise Exception("Usage: glite-ce-glue2-endpoint-static <config-file>")
+            
+        conffile = open(sys.argv[1])
+        for line in conffile:
+            parsed = pRegex.match(line)
+            if parsed:
+                config[parsed.group(1)] = parsed.group(2).strip(' \n\t"')
+            else:
+                tmps = line.strip()
+                if len(tmps) > 0 and not tmps.startswith('#'):
+                    raise Exception("Error parsing configuration file " + sys.argv[1])
+    
+        if not "ComputingServiceId" in config:
+            raise Exception("Missing attribute ComputingServiceId")
+        if not "InterfaceVersion" in config:
+            raise Exception("Missing attribute InterfaceVersion")
+        if not "ServingState" in config:
+            raise Exception("Missing attribute ServingState")
+        if not "HostCertificatePath" in config:
+            config["HostCertificatePath"] = "/etc/grid-security/hostcert.pem"
+        if not "EMIVersionPath" in config:
+            config["EMIVersionPath"] = '/etc/emi-version'
+        if not "Argus" in config:
+            config["Argus"] = "yes"
+        if not "ACBR" in config or len(config["ACBR"].strip()) == 0:
+            config["ACBR"] = "ALL"
+        if not "Owner" in config:
+            raise Exception("Missing attribute Owner")
+    
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        foundErr = True
+
+    if conffile:
+        conffile.close()
+    if foundErr:
+        sys.exit(1)
+
+    out = sys.stdout
+    
+    infoprovVersion = "1.1"
+    hostname = socket.getfqdn()
+    now = time.strftime("%Y%m%dT%H:%M:%SZ", time.gmtime())
+    
+    hostDN = None
+    issuerDN = None
+    try:
+        cmdargs = shlex.split('openssl x509 -in %s -noout -subject -issuer' % config["HostCertificatePath"])
+        process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pOut, pErr = process.communicate()
+        if process.returncode > 0:
+            raise Exception("Error parsing host certificate: " + pErr)
+
+        for pLine in pOut.split('\n'):
+            parsed = pRegex.match(pLine)
+            if not parsed:
+                continue
+            if parsed.group(1) == 'subject':
+                hostDN = trunc(parsed.group(2).strip(' \n\t"'))
+            if parsed.group(1) == 'issuer':
+                issuerDN = trunc(parsed.group(2).strip(' \n\t"'))
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        sys.exit(1)
+
+    EMIVersion = None
+    emiversionfile = None
+    try:
+        emiversionfile = open(config["EMIVersionPath"])
+        for line in emiversionfile:
+            tmps = line.strip()
+            if len(tmps) > 0:
+                EMIVersion = tmps
+                break
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+    if emiversionfile:
+        emiversionfile.close()
+    
+    # TrustedCA: hardwired for now
+    trustedCAs = ['IGTF']
+    
+    acbrList = config["ACBR"].split()
+    ownList = config['Owner'].split()
+    
+    endPointID = hostname + "_org.glite.ce.CREAM"
+    
+    out.write("dn: GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n" 
+               % (endPointID, config['ComputingServiceId']))
+    
+    out.write("objectClass: GLUE2Entity\n")
+    out.write("objectClass: GLUE2Endpoint\n")
+    out.write("objectClass: GLUE2ComputingEndpoint\n")
+    
+    out.write("GLUE2EntityName: %s\n" % endPointID)
+    out.write("GLUE2EntityCreationTime: %s\n" % now)
+    out.write("GLUE2EntityOtherInfo: HostDN=%s\n" % hostDN)
+    out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n")
+    out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+    out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+    if EMIVersion:
+        out.write("GLUE2EntityOtherInfo: MiddlewareName=EMI\n")
+        out.write("GLUE2EntityOtherInfo: MiddlewareVersion=%s\n" % EMIVersion)
+    if config["Argus"] == "yes":
+        out.write("GLUE2EntityOtherInfo: This CREAM-CE is using Argus\n")
+    else:
+        out.write("GLUE2EntityOtherInfo: This CREAM-CE is not using Argus\n")
+    
+    out.write("Glue2EndpointStartTime: %s\n" % now)
+    out.write("GLUE2EndpointID: %s\n" % endPointID)
+    out.write("GLUE2EndpointURL: https://%s:8443/ce-cream/services\n" % hostname)
+    out.write("GLUE2EndpointCapability: executionmanagement.jobexecution\n")
+    out.write("GLUE2EndpointTechnology: webservice\n")
+    out.write("GLUE2EndpointInterfaceName: org.glite.ce.CREAM\n")
+    out.write("GLUE2EndpointInterfaceVersion: %s\n" % config['InterfaceVersion'])
+    out.write("GLUE2EndpointWSDL: https://%s:8443/ce-cream/services/CREAM2?wsdl\n" % hostname)
+    out.write("GLUE2EndpointSupportedProfile: http://www.ws-i.org/Profiles/BasicProfile-1.0.html\n")
+    out.write("GLUE2EndpointSemantics: http://wiki.italiangrid.org/twiki/bin/view/CREAM/UserGuide\n")
+    out.write("GLUE2EndpointImplementor: gLite\n")
+    out.write("GLUE2EndpointImplementationName: CREAM\n")
+    out.write("GLUE2EndpointQualityLevel: production\n")
+    
+    # Hardwired value for GLUE2EndpointHealthState and GLUE2EndpointHealthStateInfo
+    # The real values are supposed to be provided by the dynamic plugin
+    out.write("GLUE2EndpointHealthState: unknown\n")
+    out.write("GLUE2EndpointHealthStateInfo: N/A\n")
+    out.write("GLUE2EndpointServingState: %s\n" % config['ServingState'].lower())
+    
+    out.write("GLUE2EndpointIssuerCA: %s\n" % issuerDN)
+    for tCA in trustedCAs:
+        out.write("GLUE2EndpointTrustedCA: %s\n" % trunc(tCA))
+    
+    out.write("GLUE2EndpointDownTimeInfo: See the GOC DB for downtimes: https://goc.egi.eu/\n")
+    out.write("GLUE2EndpointServiceForeignKey: %s\n" % config['ComputingServiceId'])
+    
+    out.write("GLUE2ComputingEndpointStaging: staginginout\n")
+    out.write("GLUE2ComputingEndpointJobDescription: glite:jdl\n")
+    out.write("GLUE2ComputingEndpointComputingServiceForeignKey: %s\n" % config['ComputingServiceId'])
+    out.write("\n")
+    
+    
+    out.write("dn: GLUE2PolicyID=%s_Policy,GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
+               % (endPointID, endPointID, config['ComputingServiceId']))
+
+    out.write("objectClass: GLUE2Entity\n")
+    out.write("objectClass: GLUE2Policy\n")
+    out.write("objectClass: GLUE2AccessPolicy\n")
+    
+    out.write("GLUE2EntityCreationTime: %s\n" % now)
+    out.write("GLUE2EntityName: Access control rules for Endpoint %s\n" % endPointID)
+    out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n")
+    out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+    out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+
+    out.write("GLUE2PolicyID: %s_Policy\n" % endPointID)
+    # The policy scheme needs a name: arbitrarily define this as org.glite.standard
+    out.write("GLUE2PolicyScheme: org.glite.standard\n")
+    for acbrItem in acbrList:
+        out.write("GLUE2PolicyRule: %s\n" % acbrItem)
+    for owner in ownList:
+        out.write("GLUE2PolicyUserDomainForeignKey: %s\n" % owner)
+
+    out.write("GLUE2AccessPolicyEndpointForeignKey: %s\n" % endPointID)
+    out.write("\n")
+
+if __name__ == "__main__":
+    main()
 
-#
-# Version number for this code
-my $version = "1.0";
 
-
-my $host = `hostname -f`;
-chomp($host);
-
-my $confile;
-
-
-# Read in the configuration file (first argument)
-
-my %config = (
-         ComputingServiceId => '',
-         ImplementationVersion => '',
-         InterfaceVersion => '',
-         ServingState => '',
-         Owner => '',
-         ACBR => '',
-         Argus => '',
-              );
-
-
-
-if ($ARGV[0]){
-    $confile = $ARGV[0];
-    my $fh = new FileHandle $confile
-	or die "Error: Can't open configuration file: $ARGV[0]\n";
-    foreach (<$fh>){
-        if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $config{$key}=$value;
-        }
-    }
-}else{
-    print STDERR "Usage: glite-ce-glue2-endpoint-static <config-file> \n";
-    exit 1;
-}
-
-
-my $interface_version = $config{InterfaceVersion};
-# No white space. No "
-$interface_version =~ s/\s+//g;
-$interface_version =~ s/\"//g;
-
-my $implementation_version = $config{ImplementationVersion};
-# No white space. No "
-$implementation_version =~ s/\s+//g;
-$implementation_version =~ s/\"//g;
-
-
-
-
-
-
-# Get service id from conf file
-my $ServiceID = $config{ComputingServiceId};
-
-# No white space. No "
-$ServiceID =~ s/\s+//g;
-$ServiceID =~ s/\"//g;
-
-# EndPointId is hostname + "_org.glite.ce.CREAM"
-my $EndPointId = $host . "_org.glite.ce.CREAM";
-
-
-my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-
-# Now start outputting LDIF lines for the Endpoint object.
-# Note that once we get here we are committed to printing a
-# complete, valid object. Start with the DN ...
-
-print "dn: GLUE2EndpointID=$EndPointId,$bind_dn\n";
-
-# Print the boilerplate objectclass declarations and unique ID
-
-print "objectClass: GLUE2Entity\n";
-print "objectClass: GLUE2Endpoint\n";
-print "objectClass: GLUE2ComputingEndpoint\n";
-
-# Times are mandated to be UTC only
-# Creation time and start time are then overwritten by the dynamic plugin
-my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
-print "GLUE2EntityCreationTime: $TimeNow\n";
-print "Glue2EndpointStartTime: $TimeNow\n";
-
-
-# No validity, since this is static info
-
-# Print GLUE2EndpointID:
-print "GLUE2EndpointID: $EndPointId\n";
-
-# The name is just an indicative human-readable string.
-# Let's use the EndPointId for the name 
-print "GLUE2EntityName: $EndPointId\n";
-
-
-# HostDN among the otherinfo info
-
-# Host cert location is currently hard-wired
-my $hostcert = "/etc/grid-security/hostcert.pem";
-
-# Get Host DN using openssl command
-
-my $HostDN = `openssl x509 -in $hostcert -noout -subject | cut -d = -f 2-`;
-
-# Strip leading and trailing spaces
-
-$HostDN =~ s/^\s+//;
-$HostDN =~ s/\s+$//;
-print "GLUE2EntityOtherInfo: HostDN=$HostDN\n";
-
-# Among the otherinfo, print if the CE is using ARGUS 
-my $Argus = $config{Argus};
-if ($Argus =~ /yes/) {
-print "GLUE2EntityOtherInfo: This CREAM-CE is using Argus\n";
-}
-else {
-print "GLUE2EntityOtherInfo: This CREAM-CE is not using Argus\n";
-}
-
-
-# Embed some metadata to help with debugging
-
-print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n";
-print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
-print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
-
-# Version number for EMI if it exists
-
-my $emiversion = "/etc/emi-version";
-
-if (my $ev = new FileHandle $emiversion) {
-    foreach (<$ev>) {
-        s/\s+//g;
-        if ($_) {
-            print "GLUE2EntityOtherInfo: MiddlewareName=EMI\n";
-            print "GLUE2EntityOtherInfo: MiddlewareVersion=$_\n";
-            last;
-        }
-    }
-    close $ev;
-}
-
-
-# Endpoint URL of the CREAM CE
-my $Endpoint = "https://" . $host . ":8443/ce-cream/services";
-print "GLUE2EndpointURL: $Endpoint\n";
-
-# Capability of the endpoint
-print "GLUE2EndpointCapability: executionmanagement.jobexecution\n";
-
-# Technology
-print "GLUE2EndpointTechnology: webservice\n";
-
-# InterfaceName
-print "GLUE2EndpointInterfaceName: org.glite.ce.CREAM\n";
-
-#InterfaceVersion is read from configuration file
-print "GLUE2EndpointInterfaceVersion: $interface_version\n";
-
-# WSDL is got from service
-my $GLUE2EndpointWSDL = "https://" . $host . ":8443/ce-cream/services/CREAM2?wsdl";
-print "GLUE2EndpointWSDL: $GLUE2EndpointWSDL\n";
-
-# Supported profiles: WS-I
-print "GLUE2EndpointSupportedProfile: http://www.ws-i.org/Profiles/BasicProfile-1.0.html\n";
-
-# Semantics: link to CREAM user's guide
-print "GLUE2EndpointSemantics: http://wiki.italiangrid.org/twiki/bin/view/CREAM/UserGuide\n";
-
-# GLUE2EndpointImplementor
-print "GLUE2EndpointImplementor: gLite\n";
-
-# GLUE2EndpointImplementationName
-print "GLUE2EndpointImplementationName: CREAM\n";
-
-# GLUE2EndpointImplementationVersion is read from conf file
-print "GLUE2EndpointImplementationVersion: $implementation_version\n";
-
-# Quality level is production
-print "GLUE2EndpointQualityLevel: production\n";
-
-
-# Hardwired value for GLUE2EndpointHealthState and GLUE2EndpointHealthStateInfo
-# The real values are supposed to be provided by the dynamic plugin
-print "GLUE2EndpointHealthState: unknown\n";
-print "GLUE2EndpointHealthStateInfo: N/A\n";
-
-
-# ServingState is read from conf file
-my $GLUE2EndpointServingState = $config{ServingState};
-
-# Convert in lowercase (glue2 is case sensitive)
-$GLUE2EndpointServingState = lc $GLUE2EndpointServingState;
-
-# No white space. No "
-$GLUE2EndpointServingState =~ s/\s+//g;
-$GLUE2EndpointServingState =~ s/\"//g;
-
-print "GLUE2EndpointServingState: $GLUE2EndpointServingState\n";
-
-# Issuer CA
-
-my $Issuer = "";
-if ( -e $hostcert) {
-# This should give us the host cert issuer, if any
-    $Issuer = `openssl x509 -issuer -noout -in $hostcert | sed 's/^[^/]*//'`;
-}
-
-# Output whatever it gave us, if anything
-trunc($Issuer);
-if ($Issuer) {
-    print "GLUE2EndpointIssuerCA: $Issuer\n";
-}
-
-# TrustedCA: hardwired for now
-my @TrustedCA = "IGTF";
-foreach (@TrustedCA) {
-    trunc($_);
-    if ($_) {
-        print "GLUE2EndpointTrustedCA: $_\n";
-    }
-}
-
-
-# Downtimes are handled by the GOC DB, so not published here
-
-print "GLUE2EndpointDownTimeInfo: See the GOC DB for downtimes: https://goc.egi.eu/\n";
-
-
-# Staging
-print "GLUE2ComputingEndpointStaging: staginginout\n";
-
-# Job Description
-print "GLUE2ComputingEndpointJobDescription: glite:jdl\n";
-
-# Finally print the upward link to the parent Service
-print "GLUE2EndpointServiceForeignKey: $ServiceID\n";
-print "GLUE2ComputingEndpointComputingServiceForeignKey: $ServiceID\n";
-
-# print a newline to finish the object
-print "\n";
-
-
-# That's it for the Endpoint, now start on the Access Policies
-
-# We need a unique ID for the object - for now take a simple
-# solution and just append _Policy to the Endpoint ID. Assume that
-# we'll only publish one AP object, i.e. one scheme (the gLite scheme),
-# per Endpoint.
-
-my $APUID = $EndPointId . "_Policy";
-
-# Start with the DN ...
-print "dn: GLUE2PolicyID=$APUID,GLUE2EndpointID=$EndPointId,$bind_dn\n";
-
-# Print the boilerplate objectclass declarations and unique ID
-
-print "objectClass: GLUE2Entity\n";
-print "objectClass: GLUE2Policy\n";
-print "objectClass: GLUE2AccessPolicy\n";
-print "GLUE2PolicyID: $APUID\n";
-
-# Creation time  
-print "GLUE2EntityCreationTime: $TimeNow\n";
-
-# The name is just an indicative human-readable string.
-print "GLUE2EntityName: Access control rules for Endpoint $EndPointId\n";
-
-# Embed some metadata to help with debugging
-print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n";
-print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
-print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
-
-
-# The policy scheme needs a name: arbitrarily define this as org.glite.standard
-my $PolicyScheme = "org.glite.standard";
-
-print "GLUE2PolicyScheme: $PolicyScheme\n";
-
-# Now for the actual rules - note that we must have at least one.
-
-# Strip leading and trailing white space - NB DNs may contain spaces.
-# Empty lines should not be printed as they aren't valid LDAP, and make
-# a basic sanity check for length.
-
-my $rules = 0;
-
-my $ACBR = $config{ACBR};
-my @ListOfACBR = split /\s+/, $ACBR;
-foreach (@ListOfACBR) {
-    trunc($_);
-    if ($_) {
-	$rules++;
-        print "GLUE2PolicyRule: $_\n";
-    }
-}
-
-# "ALL" is a reserved word meaning that there is no authz
-if ($rules == 0) {
-    print "GLUE2PolicyRule: ALL\n";
-}
-
-my $Owner = $config{Owner};
-my @ListOfOwner = split /\s+/, $Owner;
-
-foreach (@ListOfOwner) {
-    s/\s+//g;
-    trunc($_);
-    if ($_) {
-        print "GLUE2PolicyUserDomainForeignKey: $_\n";
-    }
-}
-
-# Finally print the upward link to the parent Endpoint
-
-print "GLUE2AccessPolicyEndpointForeignKey: $EndPointId\n";
-
-# Print a newline to finish the object
-print "\n";
-
-exit 0;
-
-##################
-
-
-sub trunc {
-
-# Truncates string attributes to a "reasonable" length, somewhat arbitrarily
-# taken to be 240 chars. Excess text is replaced by the "well-known" error
-# indicator 4444. Also strip leading and trailing spaces, which are unlikely
-# to be useful in any attribute.
-
-    if ($_[0]) {
-        $_[0] =~ s/^\s+//;
-        $_[0] =~ s/\s+$//;
-	if (length($_[0]) > 240) {
-            $_[0] = substr($_[0], 0, 239) . "...4444";
-        }
-    }
-
-}
 
