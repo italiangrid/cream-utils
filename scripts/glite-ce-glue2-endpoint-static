@@ -63,6 +63,8 @@ def main():
             config["EMIVersionPath"] = '/etc/emi-version'
         if not "Argus" in config:
             config["Argus"] = "yes"
+        if not "EMIES" in config:
+            config["EMIES"] = "no"
         if not "ACBR" in config or len(config["ACBR"].strip()) == 0:
             config["ACBR"] = "ALL"
         if not "Owner" in config:
@@ -124,85 +126,172 @@ def main():
     acbrList = config["ACBR"].split()
     ownList = config['Owner'].split()
     
-    endPointID = hostname + "_org.glite.ce.CREAM"
-    
-    out.write("dn: GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n" 
-               % (endPointID, config['ComputingServiceId']))
-    
-    out.write("objectClass: GLUE2Entity\n")
-    out.write("objectClass: GLUE2Endpoint\n")
-    out.write("objectClass: GLUE2ComputingEndpoint\n")
-    
-    out.write("GLUE2EntityName: %s\n" % endPointID)
-    out.write("GLUE2EntityCreationTime: %s\n" % now)
-    out.write("GLUE2EntityOtherInfo: HostDN=%s\n" % hostDN)
-    out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n")
-    out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
-    out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
-    if EMIVersion:
-        out.write("GLUE2EntityOtherInfo: MiddlewareName=EMI\n")
-        out.write("GLUE2EntityOtherInfo: MiddlewareVersion=%s\n" % EMIVersion)
-    if config["Argus"] == "yes":
-        out.write("GLUE2EntityOtherInfo: This CREAM-CE is using Argus\n")
-    else:
-        out.write("GLUE2EntityOtherInfo: This CREAM-CE is not using Argus\n")
-    
-    out.write("Glue2EndpointStartTime: %s\n" % now)
-    out.write("GLUE2EndpointID: %s\n" % endPointID)
-    out.write("GLUE2EndpointURL: https://%s:8443/ce-cream/services\n" % hostname)
-    out.write("GLUE2EndpointCapability: executionmanagement.jobexecution\n")
-    out.write("GLUE2EndpointTechnology: webservice\n")
-    out.write("GLUE2EndpointInterfaceName: org.glite.ce.CREAM\n")
-    out.write("GLUE2EndpointInterfaceVersion: %s\n" % config['InterfaceVersion'])
-    out.write("GLUE2EndpointWSDL: https://%s:8443/ce-cream/services/CREAM2?wsdl\n" % hostname)
-    out.write("GLUE2EndpointSupportedProfile: http://www.ws-i.org/Profiles/BasicProfile-1.0.html\n")
-    out.write("GLUE2EndpointSemantics: http://wiki.italiangrid.org/twiki/bin/view/CREAM/UserGuide\n")
-    out.write("GLUE2EndpointImplementor: gLite\n")
-    out.write("GLUE2EndpointImplementationName: CREAM\n")
-    out.write("GLUE2EndpointQualityLevel: production\n")
-    
-    # Hardwired value for GLUE2EndpointHealthState and GLUE2EndpointHealthStateInfo
-    # The real values are supposed to be provided by the dynamic plugin
-    out.write("GLUE2EndpointHealthState: unknown\n")
-    out.write("GLUE2EndpointHealthStateInfo: N/A\n")
-    out.write("GLUE2EndpointServingState: %s\n" % config['ServingState'].lower())
-    
-    out.write("GLUE2EndpointIssuerCA: %s\n" % issuerDN)
-    for tCA in trustedCAs:
-        out.write("GLUE2EndpointTrustedCA: %s\n" % trunc(tCA))
-    
-    out.write("GLUE2EndpointDownTimeInfo: See the GOC DB for downtimes: https://goc.egi.eu/\n")
-    out.write("GLUE2EndpointServiceForeignKey: %s\n" % config['ComputingServiceId'])
-    
-    out.write("GLUE2ComputingEndpointStaging: staginginout\n")
-    out.write("GLUE2ComputingEndpointJobDescription: glite:jdl\n")
-    out.write("GLUE2ComputingEndpointComputingServiceForeignKey: %s\n" % config['ComputingServiceId'])
-    out.write("\n")
     
     
-    out.write("dn: GLUE2PolicyID=%s_Policy,GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
-               % (endPointID, endPointID, config['ComputingServiceId']))
+    srvTable = {}
+    
+    srvTable[hostname + "_org.glite.ce.CREAM"] = {
+        'url' : "https://%s:8443/ce-cream/services" % hostname,
+        'wsdl' : "https://%s:8443/ce-cream/services/CREAM2?wsdl" % hostname,
+        'capabilities' : ['executionmanagement.jobexecution'],
+        'ifname' : 'org.glite.ce.CREAM',
+        'impname' : 'CREAM',
+        'profile' : 'http://www.ws-i.org/Profiles/BasicProfile-1.0.html',
+        'semantic' : 'http://wiki.italiangrid.org/twiki/bin/view/CREAM/UserGuide',
+        'jdescr' : 'glite:jdl',
+        'pubcomp' : True
+    }
+    
+    if config['EMIES'] == 'yes':
+        srvTable[hostname + "_org.ogf.emies.creation"] = {
+            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/Creation?wsdl" % hostname,
+            'capabilities' : ['executionmanagement.jobexecution', 'executionmanagement.jobdescription'],
+            'ifname' : 'org.ogf.emies.creation',
+            'impname' : 'Creation',
+            'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'jdescr' : 'emies:adl',
+            'pubcomp' : True
+        }
+    
+        srvTable[hostname + "_org.ogf.emies.activitymanagement"] = {
+            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityManagement?wsdl" % hostname,
+            'capabilities' : ['executionmanagement.jobmanagement', 'information.discovery'],
+            'ifname' : 'org.ogf.emies.activitymanagement',
+            'impname' : 'ActivityManagement',
+            'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'jdescr' : 'emies:adl',
+            'pubcomp' : True
+        }
+        
+        srvTable[hostname + "_org.ogf.emies.delegation"] = {
+            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/Delegation?wsdl" % hostname,
+            'capabilities' : ['security.delegation'],
+            'ifname' : 'org.ogf.emies.delegation',
+            'impname' : 'Delegation',
+            'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'jdescr' : 'emies:adl',
+            'pubcomp' : True
+        }
 
-    out.write("objectClass: GLUE2Entity\n")
-    out.write("objectClass: GLUE2Policy\n")
-    out.write("objectClass: GLUE2AccessPolicy\n")
+        srvTable[hostname + "_org.ogf.emies.activityinfo"] = {
+            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityInfo?wsdl" % hostname,
+            'capabilities' : ['information.monitoring', 'information.discovery'],
+            'ifname' : 'org.ogf.emies.activityinfo',
+            'impname' : 'ActivityInfo',
+            'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'jdescr' : '',
+            'pubcomp' : False
+        }
+
+        srvTable[hostname + "_org.ogf.emies.resourceinfo"] = {
+            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ResourceInfo?wsdl" % hostname,
+            'capabilities' : ['information.discovery.resource'],
+            'ifname' : 'org.ogf.emies.resourceinfo',
+            'impname' : 'ResourceInfo',
+            'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
+            'jdescr' : '',
+            'pubcomp' : False
+        }
+
+    #end if for EMIES
     
-    out.write("GLUE2EntityCreationTime: %s\n" % now)
-    out.write("GLUE2EntityName: Access control rules for Endpoint %s\n" % endPointID)
-    out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n")
-    out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
-    out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+    for endPointID in srvTable:
+    
+        srvDefs = srvTable[endPointID]
+        
+        out.write("dn: GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n" 
+                   % (endPointID, config['ComputingServiceId']))
+    
+        out.write("objectClass: GLUE2Entity\n")
+        out.write("objectClass: GLUE2Endpoint\n")
+        if srvDefs['pubcomp']:
+            out.write("objectClass: GLUE2ComputingEndpoint\n")
+    
+        out.write("GLUE2EntityName: %s\n" % endPointID)
+        out.write("GLUE2EntityCreationTime: %s\n" % now)
+        out.write("GLUE2EntityOtherInfo: HostDN=%s\n" % hostDN)
+        out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n")
+        out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+        out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+        if EMIVersion:
+            out.write("GLUE2EntityOtherInfo: MiddlewareName=EMI\n")
+            out.write("GLUE2EntityOtherInfo: MiddlewareVersion=%s\n" % EMIVersion)
+        if config["Argus"] == "yes":
+            out.write("GLUE2EntityOtherInfo: This CREAM-CE is using Argus\n")
+        else:
+            out.write("GLUE2EntityOtherInfo: This CREAM-CE is not using Argus\n")
+    
+        out.write("Glue2EndpointStartTime: %s\n" % now)
+        out.write("GLUE2EndpointID: %s\n" % endPointID)
+        out.write("GLUE2EndpointURL: %s\n" % srvDefs['url'])
+        for capaItem in srvDefs['capabilities']:
+            out.write("GLUE2EndpointCapability: %s\n" % capaItem)
+        out.write("GLUE2EndpointTechnology: webservice\n")
+        out.write("GLUE2EndpointInterfaceName: %s\n" % srvDefs['ifname'])
+        out.write("GLUE2EndpointInterfaceVersion: %s\n" % config['InterfaceVersion'])
+        out.write("GLUE2EndpointWSDL: %s\n" % srvDefs['wsdl'])
+        out.write("GLUE2EndpointSupportedProfile: %s\n" % srvDefs['profile'])
+        out.write("GLUE2EndpointSemantics: %s\n" % srvDefs['semantic'])
+        out.write("GLUE2EndpointImplementor: gLite\n")
+        out.write("GLUE2EndpointImplementationName: %s\n" % srvDefs['impname'])
+        out.write("GLUE2EndpointQualityLevel: production\n")
+    
+        # Hardwired value for GLUE2EndpointHealthState and GLUE2EndpointHealthStateInfo
+        # The real values are supposed to be provided by the dynamic plugin
+        out.write("GLUE2EndpointHealthState: unknown\n")
+        out.write("GLUE2EndpointHealthStateInfo: N/A\n")
+        out.write("GLUE2EndpointServingState: %s\n" % config['ServingState'].lower())
+    
+        out.write("GLUE2EndpointIssuerCA: %s\n" % issuerDN)
+        for tCA in trustedCAs:
+            out.write("GLUE2EndpointTrustedCA: %s\n" % trunc(tCA))
+    
+        out.write("GLUE2EndpointDownTimeInfo: See the GOC DB for downtimes: https://goc.egi.eu/\n")
+        out.write("GLUE2EndpointServiceForeignKey: %s\n" % config['ComputingServiceId'])
+    
+        if srvDefs['pubcomp']:
+            out.write("GLUE2ComputingEndpointStaging: staginginout\n")
+            out.write("GLUE2ComputingEndpointJobDescription: %s\n" % srvDefs['jdescr'])
+            out.write("GLUE2ComputingEndpointComputingServiceForeignKey: %s\n" % config['ComputingServiceId'])
+        
+        out.write("\n")
+    
+    
+        out.write("dn: GLUE2PolicyID=%s_Policy,GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
+                   % (endPointID, endPointID, config['ComputingServiceId']))
 
-    out.write("GLUE2PolicyID: %s_Policy\n" % endPointID)
-    # The policy scheme needs a name: arbitrarily define this as org.glite.standard
-    out.write("GLUE2PolicyScheme: org.glite.standard\n")
-    for acbrItem in acbrList:
-        out.write("GLUE2PolicyRule: %s\n" % acbrItem)
-    for owner in ownList:
-        out.write("GLUE2PolicyUserDomainForeignKey: %s\n" % owner)
+        out.write("objectClass: GLUE2Entity\n")
+        out.write("objectClass: GLUE2Policy\n")
+        out.write("objectClass: GLUE2AccessPolicy\n")
+    
+        out.write("GLUE2EntityCreationTime: %s\n" % now)
+        out.write("GLUE2EntityName: Access control rules for Endpoint %s\n" % endPointID)
+        out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-endpoint-static\n")
+        out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+        out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
 
-    out.write("GLUE2AccessPolicyEndpointForeignKey: %s\n" % endPointID)
-    out.write("\n")
+        out.write("GLUE2PolicyID: %s_Policy\n" % endPointID)
+        # The policy scheme needs a name: arbitrarily define this as org.glite.standard
+        out.write("GLUE2PolicyScheme: org.glite.standard\n")
+        for acbrItem in acbrList:
+            out.write("GLUE2PolicyRule: %s\n" % acbrItem)
+        for owner in ownList:
+            out.write("GLUE2PolicyUserDomainForeignKey: %s\n" % owner)
+
+        out.write("GLUE2AccessPolicyEndpointForeignKey: %s\n" % endPointID)
+        out.write("\n")
+        
+    #end iteration on srvTable
 
 if __name__ == "__main__":
     main()
