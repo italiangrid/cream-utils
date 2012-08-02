@@ -1,219 +1,251 @@
-#!/usr/bin/perl -w
-#
-# glite-ce-glue2-endpoint-dynamic: an information provider plugin for the 
-# dynamic part of the Endpoint object, in v 2.0 of the GLUE schema
-# It can be installed as a gip plugin
-#
-# Author: Massimo Sgaravatto, but code heavily copied from
-# glite-info-glue2-endpoint, implemented by Stephen Burke
-#
-# Ref: http://www.ogf.org/documents/GFD.147.pdf
-#      http://glue20.web.cern.ch/glue20/
-# Copyright (c) Members of the EGEE Collaboration. 2010.
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
 # See http://www.eu-egee.org/partners/ for details on the copyright
-# holders.
+# holders.  
 #
-#     Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0 
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
 # limitations under the License.
 
-use strict;
-use FileHandle;
-use POSIX qw(strftime);
+import sys
+import re
+import socket
+import time
+import shlex
+import subprocess
+import glob
 
-# Hardwire the data validity period to 1 hour for now
-my $validity = "3600";
+def trunc(inStr):
+    tmps = inStr.strip()
+    if len(tmps) > 240:
+        return tmps[0:239] + "...4444"
+    else:
+        return tmps
 
-my $confile;
-my $dbconfile;
+def _parsePropFile(filename, pRE, mandList):
+
+    pTable = {}
+    propfile = None
+    
+    try:
+        propfile = open(filename)
+        for line in propfile:
+            parsed = pRE.match(line)
+            if parsed:
+                pTable[parsed.group(1)] = parsed.group(2).strip(' \n\t"')
+            else:
+                tmps = line.strip()
+                if len(tmps) > 0 and not tmps.startswith('#'):
+                    raise Exception("Error parsing configuration file " + filename)
+    finally:
+        if propfile:
+            propfile.close()
+    
+    for mItem in mandList:
+        if not mItem in pTable:
+            raise Exception("Missing attribute %s" % mItem)
+            
+    return pTable
+
+def _healthState(code):
+    
+    if code == 0:
+        return 'ok'
+    elif code == 1:
+        return 'critical'
+    elif code == 2:
+        return 'warning'
+    elif code == 3:
+        return 'unknown'
+    return 'other'
+
+def _servingState(code):
+    
+    if code == 0:
+        return 'production'
+    elif code == 1 or code == 2:
+        return 'draining'
+    return 'closed'
 
 
-# Read in the configuration file (first argument)
-
-my %config = (
-        ComputingServiceId => '',
-        HealthStateHelper => '',
-              );
-
-my %dbconfig = (
-        DBHost => '',
-        CreamDBName => '',
-        MinPrivDBUser => '',
-        MinPrivDBPassword => '',
-              );
 
 
 
-if ($ARGV[0]){
-    $confile = $ARGV[0];
-    my $fh = new FileHandle $confile
-	or die "Error: Can't open configuration file: $ARGV[0]\n";
-    foreach (<$fh>){
-        if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $config{$key}=$value;
-        }
+def main():
+
+    pRegex = re.compile('^\s*([^=\s]+)\s*=([^$]+)$')
+
+    config = None
+    dbconfig = None
+
+    infoprovVersion = "1.1"
+    hostname = socket.getfqdn()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    #
+    # TODO Validity is hard-coded for now (1hour in seconds)
+    #
+    validity = 3600
+
+    try:
+        if len(sys.argv) <> 3:
+            raise Exception("Usage: Usage: glite-ce-glue2-endpoint-dynamic <config-file> <db-config-file>")
+        
+        config = _parsePropFile(sys.argv[1], pRegex, ['ComputingServiceId' ])
+        dbconfig = _parsePropFile(sys.argv[2], pRegex,
+                                  ['DBHost', 'CreamDBName', 'MinPrivDBUser', 'MinPrivDBPassword'])
+        
+        if not "EMIES" in config:
+            config["EMIES"] = "no"
+        if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
+            config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+    
+    except Exception, ex:
+        etype, evalue, etraceback = sys.exc_info()
+        sys.excepthook(etype, evalue, etraceback)
+        sys.stderr.write(str(ex) + '\n')
+        sys.exit(1)
+        
+    
+    healthStateCode = 0
+    healthStateInfo = ''
+    servingCode = 0
+    starttime = ''
+    try:
+
+        tmpl = glob.glob("/etc/tomcat?")
+        if len(tmpl) <> 1:
+            raise Exception("Cannot detect tomcat installation")
+        tomcatName = tmpl[0][5:]
+        
+        statusProbes = ['/sbin/service %s status' % tomcatName]
+        if 'HealthStateHelper' in config:
+            statusProbes.append(config['HealthStateHelper'])
+        
+        for probe in statusProbes:
+            cmdargs = shlex.split(probe)
+            process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            pOut, pErr = process.communicate()
+            healthStateInfo = healthStateInfo + pOut + pErr
+            if process.returncode > 0:
+                healthStateCode = process.returncode
+                break
+        
+        sqlTpl = 'mysql -B --skip-column-names -h %s -u %s --password="%s" -e "use %s; %s;"' \
+                 % (dbconfig['DBHost'], dbconfig['MinPrivDBUser'], 
+                    dbconfig['MinPrivDBPassword'], dbconfig['CreamDBName'], '%s')
+                    
+        
+        query1 = 'select submissionEnabled from db_info;'
+        
+        cmdargs = shlex.split(sqlTpl % query1)
+        process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pOut, pErr = process.communicate()
+        if process.returncode > 0:
+            raise Exception("Error detecting serving status: " + pErr)
+        servingCode = int(pOut.strip())
+        
+        query2 = 'select SUBTIME((select startUpTime from db_info),TIMEDIFF(CURRENT_TIME(),UTC_TIME())) from db_info;'
+        
+        cmdargs = shlex.split(sqlTpl % query2)
+        process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        pOut, pErr = process.communicate()
+        if process.returncode > 0:
+            raise Exception("Error detecting start time: " + pErr)
+        starttime = pOut.strip().replace(' ', 'T') + 'Z'
+        
+    except Exception, ex:
+        etype, evalue, etraceback = sys.exc_info()
+        sys.excepthook(etype, evalue, etraceback)
+        sys.stderr.write(str(ex) + '\n')
+        sys.exit(1)
+        
+    out = sys.stdout
+    
+    srvTable = {}
+    
+    srvTable[hostname + "_org.glite.ce.CREAM"] = {
+        'srvID' : config['ComputingServiceId'],
+        'hstate' : _healthState(healthStateCode),
+        'hinfo' : trunc(healthStateInfo),
+        'sstate' : _servingState(servingCode),
+        'stime' : starttime
     }
-  if ($ARGV[1]){
-    $dbconfile = $ARGV[1];
-    my $fh1 = new FileHandle $dbconfile
-	or die "Error: Can't open configuration file: $ARGV[1]\n";
-    foreach (<$fh1>){
-	if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $dbconfig{$key}=$value;
+    
+    #
+    # TODO temporary we use CREAM definitions also for ES
+    #
+    if config['EMIES'] == 'yes':
+        srvTable[hostname + "_org.ogf.emies.creation"] = {
+            'srvID' : config['ESComputingServiceId'],
+            'hstate' : _healthState(healthStateCode),
+            'hinfo' : trunc(healthStateInfo),
+            'sstate' : _servingState(servingCode),
+            'stime' : starttime
         }
-    }
-} else {
-    print STDERR "Usage: glite-ce-glue2-endpoint-dynamic <config-file> <db-config-file>\n";
-    exit 1;
-}
-} else{     
-    print STDERR "Usage: glite-ce-glue2-endpoint-dynamic <config-file> <db-config-file>\n";
-    exit 1;
-}
-
-
-
-
-my $ServiceID = $config{ComputingServiceId};
-
-# No white space. No "
-$ServiceID =~ s/\s+//g;
-$ServiceID =~ s/\"//g;
-
-my $host = `hostname -f`;
-chomp($host);
-
-my $EndPointId = $host . "_org.glite.ce.CREAM";
-
-
-my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-
-# Now start outputting LDIF lines for the Endpoint object.
-# Note that once we get here we are committed to printing a
-# complete, valid object. Start with the DN ...
-
-print "dn: GLUE2EndpointID=$EndPointId,$bind_dn\n";
-
-# Times are mandated to be UTC only
-my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
-print "GLUE2EntityCreationTime: $TimeNow\n";
-
-# Validity is hardwired above
-print "GLUE2EntityValidity: $validity\n";
-
-
-# Using glite-info-service-test and service tomcatx status to get
-# the state of the service 
-my $helper = $config{HealthStateHelper};
-# No leading and traling spaces. No "
-$helper =~ s/^\s+//;
-$helper =~ s/\s+$//;
-$helper =~ s/\"//g;
-
-# Find tomcat version
-my $tomcat = </etc/tomcat?>;
-$tomcat=~s/\/etc\///g;
-
-
-my $Info = `$helper && /sbin/service $tomcat status`;
-
-my $Status = $? >> 8;
-
-my $Statcode;
-if    ($Status == 0) { $Statcode = "ok" }
-elsif ($Status == 1) { $Statcode = "critical" }
-elsif ($Status == 2) { $Statcode = "warning" }
-elsif ($Status == 3) { $Statcode = "unknown" }
-else                 { $Statcode = "other" }
-print "GLUE2EndpointHealthState: $Statcode\n";
-# Info is now optional
-if ($Info) {
-    trunc($Info);
-    print "GLUE2EndpointHealthStateInfo: $Info\n";
-}
-
-
-
-my $dbhost= $dbconfig{DBHost};
-my $creamdbname = $dbconfig{CreamDBName};
-my $userdb= $dbconfig{MinPrivDBUser};
-my $passworddb = $dbconfig{MinPrivDBPassword};
-
-
-# Check if submissions are disabled. If so, publish draining for 
-# GLUE2EndpointServingState
-# Publish closed if there are some problems with the query
-my $querycmd= "mysql -B --skip-column-names -h " . $dbhost . " -u " . $userdb . " --password=\"" . $passworddb . "\" -e \"use $creamdbname; select submissionEnabled from db_info;;\"";
-
-my $SubmissionEnabled=`$querycmd`;
-chomp ($SubmissionEnabled);
-if ($SubmissionEnabled == 0)
-{
-    print "GLUE2EndpointServingState: production\n";
-}
-elsif (($SubmissionEnabled == 1) || ($SubmissionEnabled == 2)) 
-{
-    print "GLUE2EndpointServingState: draining\n";
-}
-else { # There is something wrong the DB query: publish closed
-    print "GLUE2EndpointServingState: closed\n";
-
-}
-
-
-
-# Check start time
-$querycmd= "mysql -B --skip-column-names -h " . $dbhost . " -u " . $userdb . " --password=\"" . $passworddb . "\" -e \"use $creamdbname; select SUBTIME((select startUpTime from db_info),TIMEDIFF(CURRENT_TIME(),UTC_TIME())) from db_info;;\"";
-
-
-my $StartTime=`$querycmd`;
-chomp ($StartTime);
-
-# Convert in right format
-$StartTime=~s/ /T/;
-$StartTime .= "Z";
-
-print "GLUE2EndpointStartTime: $StartTime\n";
-
-
-##################
-
-
-sub trunc {
-
-# Truncates string attributes to a "reasonable" length, somewhat arbitrarily
-# taken to be 240 chars. Excess text is replaced by the "well-known" error
-# indicator 4444. Also strip leading and trailing spaces, which are unlikely
-# to be useful in any attribute.
-
-    if ($_[0]) {
-        $_[0] =~ s/^\s+//;
-        $_[0] =~ s/\s+$//;
-	if (length($_[0]) > 240) {
-            $_[0] = substr($_[0], 0, 239) . "...4444";
+        
+        srvTable[hostname + "_org.ogf.emies.activitymanagement"] = {
+            'srvID' : config['ESComputingServiceId'],
+            'hstate' : _healthState(healthStateCode),
+            'hinfo' : trunc(healthStateInfo),
+            'sstate' : _servingState(servingCode),
+            'stime' : starttime
         }
-    }
+        
+        srvTable[hostname + "_org.ogf.emies.delegation"] = {
+            'srvID' : config['ESComputingServiceId'],
+            'hstate' : _healthState(healthStateCode),
+            'hinfo' : trunc(healthStateInfo),
+            'sstate' : _servingState(servingCode),
+            'stime' : starttime
+        }
 
-}
+        srvTable[hostname + "_org.ogf.emies.activityinfo"] = {
+            'srvID' : config['ESComputingServiceId'],
+            'hstate' : _healthState(healthStateCode),
+            'hinfo' : trunc(healthStateInfo),
+            'sstate' : _servingState(servingCode),
+            'stime' : starttime
+        }
+        
+        srvTable[hostname + "_org.ogf.emies.resourceinfo"] = {
+            'srvID' : config['ESComputingServiceId'],
+            'hstate' : _healthState(healthStateCode),
+            'hinfo' : trunc(healthStateInfo),
+            'sstate' : _servingState(servingCode),
+            'stime' : starttime
+        }
+
+    #end if for EMIES
+
+
+    for endPointID in srvTable:
+    
+        srvDefs = srvTable[endPointID]
+        
+        out.write("dn: GLUE2EndpointID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n" 
+                   % (endPointID, srvDefs['srvID']))
+        out.write("GLUE2EntityCreationTime: %s\n" % now)
+        out.write("GLUE2EntityValidity: %d\n" %validity)
+        out.write("GLUE2EndpointHealthState: %s\n" % srvDefs['hstate'])
+        if len(srvDefs['hinfo']):
+            out.write("GLUE2EndpointHealthStateInfo: %s\n" % srvDefs['hinfo'])
+        out.write("GLUE2EndpointServingState: %s\n" % srvDefs['sstate'])
+        out.write("GLUE2EndpointStartTime: %s\n" % srvDefs['stime'])
+        out.write("\n")
+
+
+
+
+
+
+if __name__ == "__main__":
+    main()
 
