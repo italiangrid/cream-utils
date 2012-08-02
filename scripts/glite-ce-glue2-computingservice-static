@@ -30,7 +30,7 @@ def main():
     
     infoprovVersion = "1.1"
     hostname = socket.getfqdn()
-    now = time.strftime("%Y%m%dT%H:%M:%SZ", time.gmtime())
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     conffile = None
     foundErr = False
