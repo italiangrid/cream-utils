@@ -1,351 +1,179 @@
-#!/usr/bin/perl -w
-#
-# glite-ce-glue2-executionenvironment-static: an information provider for the
-# static part of the ExecutionEnvironment object, in v 2.0 of the GLUE schema
-# It can be installed as a gip provider or, even better, it can be called
-# just once to produce a ldif part to be installed in the ldif
-# gip directory
-#
-# Author: Massimo Sgaravatto
-#
-# Ref: http://www.ogf.org/documents/GFD.147.pdf
-#      http://glue20.web.cern.ch/glue20/
-# Copyright (c) Members of the EGEE Collaboration. 2010.
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
 # See http://www.eu-egee.org/partners/ for details on the copyright
-# holders.
+# holders.  
 #
-#     Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0 
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
 # limitations under the License.
-use strict;
-use FileHandle;
-use POSIX qw(strftime);
 
-#
-# Version number for this code
-my $version = "1.0";
-
-
-my $host = `hostname -f`;
-chomp($host);
-
-my $confile;
-
-
-my %config = (
-        ComputingServiceId => '',
-	      );
-
-# Read in the configuration file (first argument)
-
-
-if ($ARGV[0]){
-    $confile = $ARGV[0];
-    my $fh = new FileHandle $confile
-        or die "Error: Can't open configuration file: $ARGV[0]\n";
-    foreach (<$fh>){
-        if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $config{$key}=$value;
-	}
-    }
-}else{
-    print STDERR "Usage: glite-ce-glue2-executionenvironment-static <config-file> \n";
-    exit 1;
-}
-
-# Get service id from conf file
-my $ServiceID = $config{ComputingServiceId};
-
-# No white space. No "
-$ServiceID =~ s/\s+//g;
-$ServiceID =~ s/\"//g;
-
-# Times are mandated to be UTC only
-my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
-
-my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-# Read EEs from conf file
-my $ExecutionEnvironments = $config{ExecutionEnvironments};
-
-#No leading and traling spaces. No "
-$ExecutionEnvironments =~ s/^\s+//;
-$ExecutionEnvironments =~ s/\s+$//;
-$ExecutionEnvironments =~ s/\"//g;
-
-# Get list of EEs. Separator is ,
-my @list = split /,/, $ExecutionEnvironments;
-
-my $ResourceID;
-
-foreach $ResourceID (@list)
-{
- #strip (, ), leading and trailing spaces
-      $ResourceID =~ s/\(//g;
-      $ResourceID =~ s/\)//g;
-      $ResourceID =~ s/^\s+//;
-      $ResourceID =~ s/\s+$//; 
-
-
-      # Now start outputting LDIF lines for the Endpoint object.
-      # Note that once we get here we are committed to printing a
-      # complete, valid object. Start with the DN ...
-
-      print "dn: GLUE2ResourceID=$ResourceID,$bind_dn\n";
-
-      # Print the boilerplate objectclass declarations and unique ID
-      print "objectClass: GLUE2Entity\n";
-      print "objectClass: GLUE2Resource\n";
-      print "objectClass: GLUE2ExecutionEnvironment\n";
-
-      print "GLUE2EntityCreationTime: $TimeNow\n";
-
-      # No validity, since this is static info
-
-      # Print ResourceID   
-      print "GLUE2ResourceID: $ResourceID\n";
-
-      # The name is just an indicative human-readable string.
-      # Let's use the ResourceID for the name
-      print "GLUE2EntityName: $ResourceID\n";
-
-      # Embed some metadata to help with debugging
-      print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-executionenvironment-static\n";
-      print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
-      print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
-
-      # SMPsize published in OtherInfo
-
-      my $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_SmpSize";
-      my $Smpsize = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $Smpsize =~ s/^\s+//;
-      $Smpsize =~ s/\s+$//;
-      $Smpsize =~ s/\"//g;
-
-      print "GLUE2EntityOtherInfo: SmpSize=$Smpsize\n";
-
-      # Number of cores published in OtherInfo
-
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_Cores";
-      my $Cores = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $Cores =~ s/^\s+//;
-      $Cores =~ s/\s+$//;
-      $Cores =~ s/\"//g;
-
-      print "GLUE2EntityOtherInfo: Cores=$Cores\n";
-
-      # Platform
-      
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_ArchitecturePlatformType";
-      my $Platform = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $Platform =~ s/^\s+//;
-      $Platform =~ s/\s+$//;
-      $Platform =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentPlatform: $Platform\n";
-
-      # TotalInstances: number of cores / number of cores per WN
-
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_SmpSize";
-      my $SmpSize =  $config{$valuetoread};
-      
-      # No white space. No "
-      $SmpSize =~ s/\s+//g;
-      $SmpSize =~ s/\"//g;
-
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_LogicalCPUs";
-      my $LogicalCPUs = $config{$valuetoread};
-
-      # No white space. No "
-      $LogicalCPUs =~ s/\s+//g;
-      $LogicalCPUs =~ s/\"//g;
-
-      my $GLUE2ExecutionEnvironmentTotalInstances = int ($LogicalCPUs / $SmpSize);
-      print "GLUE2ExecutionEnvironmentTotalInstances: $GLUE2ExecutionEnvironmentTotalInstances\n";
-
-      # PhysicalCPUs
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_PhysicalCPUs";
-      my $PhysicalCPUs = $config{$valuetoread};
-
-      # No white space. No "
-      $PhysicalCPUs =~ s/\s+//g;
-      $PhysicalCPUs =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentPhysicalCPUs: $PhysicalCPUs\n";
-
-      # LogicalCPUs
-      print "GLUE2ExecutionEnvironmentLogicalCPUs: $LogicalCPUs\n";
-
-      # CPUmultiplicity
-      my $cores;
-      my $cpus;
-      if ($PhysicalCPUs == $LogicalCPUs)
-        {
-	 $cores = "single";
-        }
-      else {
-            $cores = "multi"; 
-        }
-      if ($SmpSize  == ($LogicalCPUs / $PhysicalCPUs))
-        {
-         $cpus = "single";
-        }
-      else {
-            $cpus= "multi";
-       }  
-      my $GLUE2ExecutionEnvironmentCPUMultiplicity = $cpus . "cpu" . "-" . $cores . "core";
-     print "GLUE2ExecutionEnvironmentCPUMultiplicity: $GLUE2ExecutionEnvironmentCPUMultiplicity\n";
-
-      # CPU Vendor
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_ProcessorVendor";
-      my $ProcessorVendor = $config{$valuetoread};
-      # No leading and traling spaces. No "
-      $ProcessorVendor =~ s/^\s+//;
-      $ProcessorVendor =~ s/\s+$//;
-      $ProcessorVendor =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentCPUVendor: $ProcessorVendor\n";
-
-      # CPU Model
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_ProcessorModel";
-      my $ProcessorModel = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $ProcessorModel =~ s/^\s+//;
-      $ProcessorModel =~ s/\s+$//;
-      $ProcessorModel =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentCPUModel: $ProcessorModel\n";
-
-      # CPU Clock speed
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_ProcessorClockSpeed";
-      my $ProcessorClockSpeed = $config{$valuetoread};
-
-      # No white space. No "
-      $ProcessorClockSpeed =~ s/\s+//g;
-      $ProcessorClockSpeed =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentCPUClockSpeed: $ProcessorClockSpeed\n";
-
-      # Main Memory size
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_MainMemoryRAMSize"; 
-      my $MainMemoryRAMSize = $config{$valuetoread};
-
-      # No white space. No "
-      $MainMemoryRAMSize =~ s/\s+//g;
-      $MainMemoryRAMSize =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentMainMemorySize: $MainMemoryRAMSize\n";
-
-      # Virtual Memory size
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_MainMemoryVirtualSize";
-      my $MainMemoryVirtualSize = $config{$valuetoread};
-
-      # No white space. No "
-      $MainMemoryVirtualSize =~ s/\s+//g;
-      $MainMemoryVirtualSize =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentVirtualMemorySize: $MainMemoryVirtualSize\n";
-
-      # OS Family
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_OperatingSystemFamily"; 
-      my $OperatingSystemFamily = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $OperatingSystemFamily =~ s/^\s+//;
-      $OperatingSystemFamily =~ s/\s+$//;
-      $OperatingSystemFamily =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentOSFamily: $OperatingSystemFamily\n";
-
-
-      # OS Name
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_OperatingSystemName";
-      my $OperatingSystemName = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $OperatingSystemName =~ s/^\s+//;
-      $OperatingSystemName =~ s/\s+$//;
-      $OperatingSystemName =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentOSName: $OperatingSystemName\n";
-
-      # OS version
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_OperatingSystemRelease";
-      my $OperatingSystemRelease = $config{$valuetoread};
-
-      # No leading and traling spaces. No "
-      $OperatingSystemRelease =~ s/^\s+//;
-      $OperatingSystemRelease =~ s/\s+$//;
-      $OperatingSystemRelease =~ s/\"//g;
-
-      print "GLUE2ExecutionEnvironmentOperatingSystemRelease = $OperatingSystemRelease\n";
-
-
-      # Connectivity in
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_NetworkAdapterInboundIP";
-      my $NetworkAdapterInboundIP = $config{$valuetoread};
-
-      # No white space. No "
-      $NetworkAdapterInboundIP =~ s/\s+//g;
-      $NetworkAdapterInboundIP =~ s/\"//g;
-
-      # Boolean values are supposed to be printed in lower case
-      # However it looks like there is a bug and therefore they must be printed in upper case
-      $NetworkAdapterInboundIP = uc $NetworkAdapterInboundIP;
-      
-      print "GLUE2ExecutionEnvironmentConnectivityIn: $NetworkAdapterInboundIP\n";
-
-      # Connectivity out
-      $valuetoread = "ExecutionEnvironment" . "_$ResourceID" . "_NetworkAdapterOutboundIP";
-
-      my $NetworkAdapterOutboundIP = $config{$valuetoread};
-
-      # No white space. No "
-      $NetworkAdapterOutboundIP =~ s/\s+//g;
-      $NetworkAdapterOutboundIP =~ s/\"//g;
-
-      # Boolean values are supposed to be printed in lower case
-      # However it looks like there is a bug and therefore they must be printed in upper case
-
-      $NetworkAdapterOutboundIP = uc $NetworkAdapterOutboundIP;
-
-      print "GLUE2ExecutionEnvironmentConnectivityOut: $NetworkAdapterOutboundIP\n";
-
-
-      # Finally print the upward link to the parent Manager
-      my $ManagerId = $ServiceID . "_Manager";
-      print "GLUE2ResourceManagerForeignKey: $ManagerId\n";
-      print "GLUE2ExecutionEnvironmentComputingManagerForeignKey: $ManagerId\n";
-
-      # Print a newline to finish the object
-      print "\n";
-     
-    }
-
-exit 0;
-
-
-
-
+import sys
+import re
+import socket
+import time
+
+def main():
+
+    pRegex = re.compile('^\s*([^=\s]+)\s*=([^$]+)$')
+
+    config = {}
+
+    infoprovVersion = "1.1"
+    hostname = socket.getfqdn()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        
+    conffile = None
+    foundErr = False
+    try:
+        if len(sys.argv) <> 2:
+            raise Exception("Usage: glite-ce-glue2-executionenvironment-static <config-file>")
+            
+        conffile = open(sys.argv[1])
+        for line in conffile:
+            parsed = pRegex.match(line)
+            if parsed:
+                config[parsed.group(1)] = parsed.group(2).strip(' \n\t"')
+            else:
+                tmps = line.strip()
+                if len(tmps) > 0 and not tmps.startswith('#'):
+                    raise Exception("Error parsing configuration file " + sys.argv[1])
+    
+        for mItem in ['ComputingServiceId',
+                      'ExecutionEnvironments']:
+            if not mItem in config:
+                raise Exception("Missing attribute %s" % mItem)
+        if not "EMIES" in config:
+            config["EMIES"] = "no"
+        if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
+            config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+    
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        foundErr = True
+
+    if conffile:
+        conffile.close()
+    if foundErr:
+        sys.exit(1)
+
+
+    out = sys.stdout
+    
+    resList = config['ExecutionEnvironments'].strip("()").split(',')
+
+    srvList = [config['ComputingServiceId']]
+    if config['EMIES'] == 'yes':
+        srvList.append(config['ESComputingServiceId'])
+    
+    
+    for srvId in srvList:
+    
+        for tmpres in resList:
+            
+            resId = tmpres.strip()
+            
+            resKeys = ["ExecutionEnvironment_%s_SmpSize" % resId,
+                       "ExecutionEnvironment_%s_Cores" % resId,
+                       "ExecutionEnvironment_%s_ArchitecturePlatformType" % resId,
+                       "ExecutionEnvironment_%s_LogicalCPUs" % resId,
+                       "ExecutionEnvironment_%s_PhysicalCPUs" % resId,
+                       "ExecutionEnvironment_%s_ProcessorVendor" % resId,
+                       "ExecutionEnvironment_%s_ProcessorModel" % resId,
+                       "ExecutionEnvironment_%s_ProcessorClockSpeed" % resId,
+                       "ExecutionEnvironment_%s_MainMemoryRAMSize" % resId,
+                       "ExecutionEnvironment_%s_MainMemoryVirtualSize" % resId,
+                       "ExecutionEnvironment_%s_OperatingSystemFamily" % resId,
+                       "ExecutionEnvironment_%s_OperatingSystemName" % resId,
+                       "ExecutionEnvironment_%s_OperatingSystemRelease" % resId,
+                       "ExecutionEnvironment_%s_NetworkAdapterInboundIP" % resId,
+                       "ExecutionEnvironment_%s_NetworkAdapterOutboundIP" % resId]
+            
+            for keyX in resKeys:
+                if not keyX in config:
+                    sys.stderr.write("Missing definition for " + keyX  + '\n')
+                    sys.exit(1)
+            
+            try:
+            
+                smpSize = int(config[resKeys[0]])
+                cores = int(config[resKeys[1]])
+                platform = config[resKeys[2]]
+                lCPUs = int(config[resKeys[3]])
+                pCPUs = int(config[resKeys[4]])
+                if smpSize > 0:
+                    totalInstances = lCPUs/smpSize
+                else:
+                    totalInstances = 0
+                
+                if lCPUs == pCPUs:
+                    cpuType = 'single'
+                else:
+                    cpuType = 'multi'
+                    
+                if smpSize == (lCPUs/pCPUs):
+                    coreType = 'single'
+                else:
+                    coreType = 'multi'
+                    
+                pVendor = config[resKeys[5]]
+                pModel = config[resKeys[6]]
+                pSpeed = config[resKeys[7]]
+                memSize = int(config[resKeys[8]])
+                virtSize = int(config[resKeys[9]])
+                osType = config[resKeys[10]]
+                osName = config[resKeys[11]]
+                osVers = config[resKeys[12]]
+                inConn = config[resKeys[13]].upper()
+                outConn = config[resKeys[14]].upper()
+                
+            except Exception, ex:
+                sys.stderr.write(str(ex) + '\n')
+                sys.exit(1)
+
+            out.write("dn: GLUE2ResourceID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
+                      % (resId, srvId))
+            out.write("objectClass: GLUE2Entity\n")
+            out.write("objectClass: GLUE2Resource\n")
+            out.write("objectClass: GLUE2ExecutionEnvironment\n")
+            out.write("GLUE2EntityCreationTime: %s\n" % now)
+            out.write("GLUE2EntityName: %s\n" % resId)
+            out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-executionenvironment-static\n")
+            out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+            out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+            out.write("GLUE2EntityOtherInfo: SmpSize=%d\n" % smpSize)
+            out.write("GLUE2EntityOtherInfo: Cores=%d\n" % cores)
+
+            out.write("GLUE2ResourceID: %s\n" % resId)
+            out.write("GLUE2ResourceManagerForeignKey: %s_Manager\n" % srvId)
+
+            out.write("GLUE2ExecutionEnvironmentPlatform: %s\n" % platform)
+            out.write("GLUE2ExecutionEnvironmentTotalInstances: %d\n" % totalInstances)
+            out.write("GLUE2ExecutionEnvironmentPhysicalCPUs: %d\n" % pCPUs)
+            out.write("GLUE2ExecutionEnvironmentLogicalCPUs: %d\n" % lCPUs)
+            out.write("GLUE2ExecutionEnvironmentCPUMultiplicity: %scpu-%score\n" 
+                      % (cpuType, coreType))
+            out.write("GLUE2ExecutionEnvironmentCPUVendor: %s\n" % pVendor)
+            out.write("GLUE2ExecutionEnvironmentCPUModel: %s\n" % pModel)
+            out.write("GLUE2ExecutionEnvironmentCPUClockSpeed: %s\n" % pSpeed)
+            out.write("GLUE2ExecutionEnvironmentMainMemorySize: %d\n" % memSize)
+            out.write("GLUE2ExecutionEnvironmentVirtualMemorySize: %d\n" % virtSize)
+            out.write("GLUE2ExecutionEnvironmentOSFamily: %s\n" % osType)
+            out.write("GLUE2ExecutionEnvironmentOSName: %s\n" % osName)
+            out.write("GLUE2ExecutionEnvironmentOperatingSystemRelease = %s\n" % osVers)
+            out.write("GLUE2ExecutionEnvironmentConnectivityIn: %s\n" % inConn)
+            out.write("GLUE2ExecutionEnvironmentConnectivityOut: %s\n" % outConn)
+            out.write("GLUE2ExecutionEnvironmentComputingManagerForeignKey: %s_Manager\n" % srvId)
+            out.write("\n")    
+
+
+if __name__ == "__main__":
+    main()
 
