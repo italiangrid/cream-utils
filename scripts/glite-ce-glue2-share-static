@@ -1,343 +1,173 @@
-#!/usr/bin/perl -w
-#
-# glite-ce-glue2-share-static: an information provider for the
-# static part of the Share object, in v 2.0 of the GLUE schema
-# It can be installed as a gip provider or, even better, it can be called
-# just once to produce a ldif part to be installed in the ldif
-# gip directory
-#
-# Author: Massimo Sgaravatto
-#
-# Ref: http://www.ogf.org/documents/GFD.147.pdf
-#      http://glue20.web.cern.ch/glue20/
-# Copyright (c) Members of the EGEE Collaboration. 2010.
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
 # See http://www.eu-egee.org/partners/ for details on the copyright
-# holders.
+# holders.  
 #
-#     Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0 
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
 # limitations under the License.
 
-use strict;
-use FileHandle;
-use POSIX qw(strftime);
+import sys
+import re
+import socket
+import time
 
-#
-# Version number for this code
-my $version = "1.0";
+def main():
 
+    pRegex = re.compile('^\s*([^=\s]+)\s*=([^$]+)$')
 
-my $host = `hostname -f`;
-chomp($host);
+    config = {}
 
-my $confile;
+    infoprovVersion = "1.1"
+    hostname = socket.getfqdn()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    
+    conffile = None
+    foundErr = False
+    try:
+        if len(sys.argv) <> 2:
+            raise Exception("Usage: glite-ce-glue2-share-static <config-file>")
+            
+        conffile = open(sys.argv[1])
+        for line in conffile:
+            parsed = pRegex.match(line)
+            if parsed:
+                config[parsed.group(1)] = parsed.group(2).strip(' \n\t"')
+            else:
+                tmps = line.strip()
+                if len(tmps) > 0 and not tmps.startswith('#'):
+                    raise Exception("Error parsing configuration file " + sys.argv[1])
+    
+        for mItem in ['ComputingServiceId',
+                      'Shares']:
+            if not mItem in config:
+                raise Exception("Missing attribute %s" % mItem)
+        if not "EMIES" in config:
+            config["EMIES"] = "no"
+        if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
+            config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+    
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        foundErr = True
 
-# Read in the configuration file (first argument)
+    if conffile:
+        conffile.close()
+    if foundErr:
+        sys.exit(1)
 
-my %config = (
-              Shares => '',
-	      );
+    out = sys.stdout
+    
+    shareList = config['Shares'].strip('()').split(',')
 
+    srvList = [config['ComputingServiceId']]
+    if config['EMIES'] == 'yes':
+        srvList.append(config['ESComputingServiceId'])
 
-if ($ARGV[0]){
-    $confile = $ARGV[0];
-    my $fh = new FileHandle $confile
-        or die "Error: Can't open configuration file: $ARGV[0]\n";
-    foreach (<$fh>){
-        if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $config{$key}=$value;
-	}
-    }
-}else{
-    print STDERR "Usage: glite-ce-glue2-share-static <config-file> \n";
-    exit 1;
-}
-
-# Get service id from conf file
-my $ServiceID = $config{ComputingServiceId};
-
-# No white space. No "
-$ServiceID =~ s/\s+//g;
-$ServiceID =~ s/\"//g;
-
-my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-
-# Read shares from conf file
-my $Shares = $config{Shares};
-
-#No leading and traling spaces. No "
-$Shares =~ s/^\s+//;
-$Shares =~ s/\s+$//;
-$Shares =~ s/\"//g;
-
-# Get list of shares. Separator is ,
-my @list = split /,/, $Shares;
-
-my $valuetoread;
-my $Share;
-my $queuename;
-my $Policy;
-my $EndPoint;
-my $CEId;
-
-# Times are mandated to be UTC only
-my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
-
-foreach $Share (@list)
-{
-      #strip (, ), leading and trailing spaces
-      $Share =~ s/\(//g;
-      $Share =~ s/\)//g;
-      $Share =~ s/^\s+//;
-      $Share =~ s/\s+$//;
-
-
-      # Now start outputting LDIF lines for the Share object.
-      # Note that once we get here we are committed to printing a
-      # complete, valid object. Start with the DN ...
-
-      # UID for share is concatenation of share name and ServiceId
-      my $ShareId = $Share . "_$ServiceID";
-
-      # Read queue name for this share from configuration file
-      $valuetoread = "SHARE_" . "$Share" . "_QUEUENAME";
-      $queuename = $config{$valuetoread};
-
-      # No white space. No "
-      $queuename =~ s/\s+//g;
-      $queuename =~ s/\"//g;          
-
-
-      # Read owner for this share from configuration file
-      $valuetoread = "SHARE_" . "$Share" . "_OWNER";
-      my $owner = $config{$valuetoread};
-
-      # No white space. No "
-      $owner =~ s/\s+//g;
-      $owner =~ s/\"//g;
-
-      my $ShareDesc = "Share of $queuename for $owner";
-
-      print "dn: GLUE2ShareID=$ShareId,$bind_dn\n";
-
-      # Print the boilerplate objectclass declarations and unique ID
-
-      print "objectClass: GLUE2Entity\n";
-      print "objectClass: GLUE2Share\n";
-      print "objectClass: GLUE2ComputingShare\n";
-
-      # Shareid
-      print "GLUE2ShareID: $ShareId\n";
-
-      # Description 
-      print "GLUE2ShareDescription: $ShareDesc\n";
-
-      print "GLUE2EntityCreationTime: $TimeNow\n";
-
-      # No validity, since this is static info
-
-
-      #Print CEId as OtherInfo
-      # Get list of CEIds for this share rom conf file
+    for srvId in srvList:
         
-      $valuetoread = "SHARE_" . "$Share" . "_CEIDS";
+        for shareItem in shareList:
+        
+            shareName = shareItem.strip()
+            shareId = "%s_%s" % (shareName, srvId)
+            
+            shKeys = ["SHARE_%s_QUEUENAME" % shareName,
+                      "SHARE_%s_OWNER" % shareName,
+                      "SHARE_%s_CEIDS" % shareName,
+                      "SHARE_%s_EXECUTIONENVIRONMENTS" % shareName,
+                      "SHARE_%s_ENDPOINTS" % shareName,
+                      "SHARE_%s_ACBRS" % shareName]
+            
+            for keyX in shKeys:
+                if not keyX in config:
+                    sys.stderr.write("Missing definition for " + keyX)
+                    sys.exit(1)
+                    
+            qname = config[shKeys[0]]
+            
+            owner = config[shKeys[1]]
+            
+            ceIdList = config[shKeys[2]].strip('()').split(',')
+                        
+            envList = config[shKeys[3]].strip('()').split(',')
+            if len(envList) == 0:
+                sys.stderr.write("Execution environment list is empty")
+                sys.exit(1)
+            
+            epList = config[shKeys[4]].strip('()').split(',')
+            
+            acbrList = config[shKeys[5]].strip('()').split(',')
+            
+            
+            out.write("dn: GLUE2ShareID=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n" 
+                      % (shareId, srvId))
+            out.write("objectClass: GLUE2Entity\n")
+            out.write("objectClass: GLUE2Share\n")
+            out.write("objectClass: GLUE2ComputingShare\n")
+            out.write("GLUE2EntityCreationTime: %s\n" % now)
+            for ceId in ceIdList:
+                out.write("GLUE2EntityOtherInfo: CREAMCEId=%s\n" % ceId.strip())
+            out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-share-static\n")
+            out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+            out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+            
+            out.write("GLUE2ShareID: %s\n" % (shareId))
+            out.write("GLUE2ShareDescription: Share of %s for %s\n" % (qname, owner))
+            out.write("GLUE2ShareResourceForeignKey: %s\n" % envList[0].strip())
+            for epItem in epList:
+                out.write("GLUE2ShareEndpointForeignKey: %s\n" % epItem.strip())
+            out.write("GLUE2ShareServiceForeignKey: %s\n" % srvId)
 
-      my $CEIDs = $config{$valuetoread};
+            out.write("GLUE2ComputingShareMappingQueue: %s\n" % qname)
+            # Default value for Serving state is production
+            # Real value supposed to be provided by the dynamic plugin
+            out.write("GLUE2ComputingShareServingState: production\n")
+            # Real values supposed to be provided by the dynamic plugin
+            out.write("GLUE2ComputingShareDefaultCPUTime: 999999999\n")
+            out.write("GLUE2ComputingShareMaxCPUTime: 999999999\n")
+            out.write("GLUE2ComputingShareDefaultWallTime: 999999999\n")
+            out.write("GLUE2ComputingShareMaxWallTime: 999999999\n")
+            out.write("GLUE2ComputingShareMaxRunningJobs: 999999999\n")
+            out.write("GLUE2ComputingShareRunningJobs: 0\n")
+            out.write("GLUE2ComputingShareTotalJobs: 0\n")
+            out.write("GLUE2ComputingShareFreeSlots: 0\n")
+            out.write("GLUE2ComputingShareWaitingJobs: 444444\n")
+            out.write("GLUE2ComputingShareEstimatedAverageWaitingTime: 2146660842\n")
+            out.write("GLUE2ComputingShareEstimatedWorstWaitingTime: 2146660842\n")
+            out.write("GLUE2ComputingShareExecutionEnvironmentForeignKey: %s\n" % envList[0].strip())
+            for epItem in epList:
+                out.write("GLUE2ComputingShareComputingEndpointForeignKey: %s\n" % epItem.strip())
+            out.write("GLUE2ComputingShareComputingServiceForeignKey: %s\n" % srvId)
+            out.write("\n")
+            
+            
+            out.write("GLUE2PolicyID=%s_policy,GLUE2ShareId=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue"
+                      % (shareId, shareId, srvId))
+            out.write("objectClass: GLUE2Entity\n")
+            out.write("objectClass: GLUE2Policy\n")
+            out.write("objectClass: GLUE2MappingPolicy\n")
+            out.write("GLUE2EntityCreationTime: %s\n" % now)
 
-      #No leading and traling spaces. No "
-      $CEIDs =~ s/^\s+//;
-      $CEIDs =~ s/\s+$//;
-      $CEIDs =~ s/\"//g;
+            out.write("GLUE2PolicyID: %s_policy\n" % shareId)
+            out.write("GLUE2PolicyScheme: org.glite.standard\n")
+            for acbr in acbrList:
+                out.write("GLUE2PolicyRule: %s\n" % acbr.strip())
+            out.write("GLUE2PolicyUserDomainForeignKey: %s\n" % owner)
 
-      my @ceid_list = split /,/, $CEIDs;
-
-      foreach $CEId (@ceid_list)
-        {      
-         #strip (, ), leading and trailing spaces
-	 $CEId =~ s/\(//g;
-	 $CEId =~ s/\)//g;
-	 $CEId =~ s/^\s+//;
-	 $CEId =~ s/\s+$//;
-
-         print "GLUE2EntityOtherInfo: CREAMCEId=$CEId\n";
-	}
-
-
-
-
-      # Embed some metadata to help with debugging
-      print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-share-static\n";
-      print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
-      print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
-
-      # Queue name
-      print "GLUE2ComputingShareMappingQueue: $queuename\n";
-
-      # Default value for Serving state is production
-      # Real value supposed to be provided by the dynamic plugin 
-      print "GLUE2ComputingShareServingState: production\n";
-
-      # Default values for MaxCPUTime, MaxWallTime, MaxRunningJobs
-      # 999999999 (as we did for Glue1)
-      # Real value supposed to be provided by the dynamic plugin
-      print "GLUE2ComputingShareDefaultCPUTime: 999999999\n";
-      print "GLUE2ComputingShareMaxCPUTime: 999999999\n";
-      print "GLUE2ComputingShareDefaultWallTime: 999999999\n";
-      print "GLUE2ComputingShareMaxWallTime: 999999999\n";
-      print "GLUE2ComputingShareMaxRunningJobs: 999999999\n";
-
-      # Default values for RunningJobs, TotalJobs, FreeSlots
-      # 0 (as we did for Glue1)
-      # Real value supposed to be provided by the dynamic plugin
-      print "GLUE2ComputingShareRunningJobs: 0\n";
-      print "GLUE2ComputingShareTotalJobs: 0\n";
-      print "GLUE2ComputingShareFreeSlots: 0\n";
-
-      # Default values for WaitingJobs 
-      # 444444 (as we did for Glue1)
-      # Real value supposed to be provided by the dynamic plugin
-      print "GLUE2ComputingShareWaitingJobs: 444444\n";
-
-      # Default values for EstimatedAverageWaitingTime and 
-      # EstimatedWorstWaitingTime
-      # 2146660842 (as we did for Glue1)
-      # Real value supposed to be provided by the dynamic plugin
-      print "GLUE2ComputingShareEstimatedAverageWaitingTime: 2146660842\n";
-      print "GLUE2ComputingShareEstimatedWorstWaitingTime: 2146660842\n";
-
-      # Link to the ExecutionEnvironment (only one, the first one,
-      # for the time being)
-          
-      # Read EEs linked to this share from conf file
-      $valuetoread = "SHARE_" . "$Share" . "_EXECUTIONENVIRONMENTS";
-
-      my $ExecutionEnvironments = $config{$valuetoread};
-
-      #No leading and traling spaces. No "
-      $ExecutionEnvironments =~ s/^\s+//;
-      $ExecutionEnvironments =~ s/\s+$//;
-      $ExecutionEnvironments =~ s/\"//g;
-
-      # Get list of EEs. Separator is ,
-      my @EEList = split /,/, $ExecutionEnvironments;
-      my $FirstEE = $EEList[0];
-      #strip (, ), leading and trailing spaces
-      $FirstEE =~ s/\(//g;
-      $FirstEE =~ s/\)//g;
-      $FirstEE =~ s/^\s+//;
-      $FirstEE =~ s/\s+$//;
-
-      # Print the links to the Execution Environments
-
-      print "GLUE2ShareResourceForeignKey: $FirstEE\n";
-      print "GLUE2ComputingShareExecutionEnvironmentForeignKey: $FirstEE\n";
-
-
-      # Print the links to the Computing Endpoints
-
-      # Read Endpoints associated to this share from conf file
-      $valuetoread = "SHARE_" . "$Share" . "_ENDPOINTS";
-
-      my $EndPoints = $config{$valuetoread};
-
-      #No leading and traling spaces. No "
-      $EndPoints =~ s/^\s+//;
-      $EndPoints =~ s/\s+$//;
-      $EndPoints =~ s/\"//g;
-
-      my @endpoint_list = split /,/, $EndPoints;
-
-      foreach $EndPoint (@endpoint_list)
-            {      
-             #strip (, ), leading and trailing spaces
-	     $EndPoint =~ s/\(//g;
-	     $EndPoint =~ s/\)//g;
-	     $EndPoint =~ s/^\s+//;
-	     $EndPoint =~ s/\s+$//;
-
-             print "GLUE2ShareEndpointForeignKey: $EndPoint\n";
-             print "GLUE2ComputingShareComputingEndpointForeignKey: $EndPoint\n";
-	    }
-
-          
-
-          # Finally print the upward link to the parent Service
-	  print "GLUE2ShareServiceForeignKey: $ServiceID\n";
-	  print "GLUE2ComputingShareComputingServiceForeignKey: $ServiceID\n";
-
-          # Print a newline to finish the object
-	  print "\n";
+            out.write("GLUE2MappingPolicyShareForeignKey: %s\n" % shareId)
+            out.write("\n")
 
 
 
 
-          # Now printing the GLUE2MappingPolicy objectclass for this share
-
-          my $bind_dn_policy = "GLUE2ShareId=$ShareId,GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-          # PolicyId is ShareId plus "_policy"
-          my $PolicyId = $ShareId . "_policy";
-
-          # Now start outputting LDIF lines for the GLUE2MappingPolicy object.
-          # Note that once we get here we are committed to printing a
-          # complete, valid object. Start with the DN ...
-          print "dn: GLUE2PolicyID=$PolicyId,$bind_dn_policy\n";
-
-          #Print the boilerplate objectclass declarations and unique ID
-          print "objectClass: GLUE2Entity\n";
-          print "objectClass: GLUE2Policy\n";
-          print "objectClass: GLUE2MappingPolicy\n";
-	  print "GLUE2PolicyID: $PolicyId\n";
-
-          print "GLUE2EntityCreationTime: $TimeNow\n";
-
-          # No validity, since this is static info
-
-	  print "GLUE2PolicyScheme: org.glite.standard\n";
-
-          # Read Access Control Policies for this share from configuration files
-
-          $valuetoread = "SHARE_" . "$Share" . "_ACBRS";
-	  my $ACBRS = $config{$valuetoread};
-
-          my @acbr_list = split /,/, $ACBRS;
-
-          foreach $Policy (@acbr_list)
-            {      
-             #strip (, ), leading and trailing spaces
-	     $Policy =~ s/\(//g;
-	     $Policy =~ s/\)//g;
-	     $Policy =~ s/^\s+//;
-	     $Policy =~ s/\s+$//;
-
-             print "GLUE2PolicyRule: $Policy\n";
-	    }
-
-
-            # As GLUE2PolicyUserDomainForeignKey print the Owner 
-           print "GLUE2PolicyUserDomainForeignKey: $owner\n";
-	   print "GLUE2MappingPolicyShareForeignKey: $ShareId\n";
-
-           # Print a newline to finish the object
-	   print "\n";
-}
-
-
-         
-      
+if __name__ == "__main__":
+    main()
 
