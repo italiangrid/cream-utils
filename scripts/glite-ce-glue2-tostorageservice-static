@@ -1,153 +1,105 @@
-#!/usr/bin/perl -w
-#
-# glite-ce-glue2-tostorageservice-static: an information provider for the
-# static part of the ToStorageService object, in v 2.0 of the GLUE schema
-# It can be installed as a gip provider or, even better, it can be called
-# just once to produce a ldif part to be installed in the ldif
-# gip directory
-#
-# Ref: http://www.ogf.org/documents/GFD.147.pdf
-#      http://glue20.web.cern.ch/glue20/
-# Copyright (c) Members of the EGEE Collaboration. 2010.
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
 # See http://www.eu-egee.org/partners/ for details on the copyright
-# holders.
+# holders.  
 #
-#     Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+#     http://www.apache.org/licenses/LICENSE-2.0 
+#
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
 # limitations under the License.
 
-use strict;
-use FileHandle;
-use POSIX qw(strftime);
+import sys
+import re
+import socket
+import time
 
-#
-# Version number for this code
-my $version = "1.0";
+def main():
 
+    pRegex = re.compile('^\s*([^=\s]+)\s*=([^$]+)$')
 
-my $host = `hostname -f`;
-chomp($host);
+    config = {}
 
-my $confile;
-
-# Read in the configuration file (first argument)
-
-my %config = (
-              ComputingServiceId => '',
-              CloseSEs => '',
-              );
-
-if ($ARGV[0]){
-    $confile = $ARGV[0];
-    my $fh = new FileHandle $confile
-        or die "Error: Can't open configuration file: $ARGV[0]\n";
-    foreach (<$fh>){
-	if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $config{$key}=$value;
-        }
-    }
-}else{
-    print STDERR "Usage: glite-ce-glue2-tostorageservice-static <config-file> \n";
-    exit 1;
-}
-
-# Get service id from conf file
-my $ServiceID = $config{ComputingServiceId};
-
-# No white space. No "
-$ServiceID =~ s/\s+//g;
-$ServiceID =~ s/\"//g;
-
-my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-# Read shares from conf file
-my $CloseSEs = $config{CloseSEs};
-
-#No leading and traling spaces. No "
-$CloseSEs =~ s/^\s+//;
-$CloseSEs =~ s/\s+$//;
-$CloseSEs =~ s/\"//g;
-
-# Get list of close SEs. Separator is , 
-
-my @list = split /,/, $CloseSEs;
-
-
-my $SE;
-my @ItemsofSE;
-
-# Times are mandated to be UTC only
-my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
-
-
-foreach $SE (@list)
-{
- #strip (, ), leading and trailing spaces
-    $SE =~ s/\(//g;
-    $SE =~ s/\)//g;
-    $SE =~ s/^\s+//;
-    $SE =~ s/\s+$//;
-
-    # split the elements of a closeSE, which is in the format
-    # SEId, LocalPath, RemotePath
-    @ItemsofSE = split /\s+/, $SE;
-
-    # Now start outputting LDIF lines for the GLUE2ToStorageService object.
-    # Note that once we get here we are committed to printing a
-    # complete, valid object. Start with the DN ...
-
-    # GLUE2ToStorageServiceID: concatenation  of serviceid and storageid  
-    my $GLUE2ToStorageServiceID = $ServiceID . "_" . $ItemsofSE[0];
-
+    infoprovVersion = "1.1"
+    hostname = socket.getfqdn()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
     
-    print "dn: GLUE2ToStorageServiceID=$GLUE2ToStorageServiceID,$bind_dn\n";  
+    conffile = None
+    foundErr = False
+    try:
+        if len(sys.argv) <> 2:
+            raise Exception("Usage: glite-ce-glue2-tostorageservice-static <config-file>")
+            
+        conffile = open(sys.argv[1])
+        for line in conffile:
+            parsed = pRegex.match(line)
+            if parsed:
+                config[parsed.group(1)] = parsed.group(2).strip(' \n\t"')
+            else:
+                tmps = line.strip()
+                if len(tmps) > 0 and not tmps.startswith('#'):
+                    raise Exception("Error parsing configuration file " + sys.argv[1])
+    
+        for mItem in ['ComputingServiceId',
+                      'CloseSEs']:
+            if not mItem in config:
+                raise Exception("Missing attribute %s" % mItem)
+        if not "EMIES" in config:
+            config["EMIES"] = "no"
+        if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
+            config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+    
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        foundErr = True
 
-    # Print the boilerplate objectclass declarations and unique ID
-    print "objectClass: GLUE2Entity\n";
-    print "objectClass: GLUE2ToStorageService\n";
+    if conffile:
+        conffile.close()
+    if foundErr:
+        sys.exit(1)
 
-    # Id
-    print "GLUE2ToStorageServiceID: $GLUE2ToStorageServiceID\n";
+    out = sys.stdout
 
-    print "GLUE2EntityCreationTime: $TimeNow\n";
+    tmpl = config['CloseSEs'].strip("()").split(',')
+    seTable = []
+    for line in tmpl:
+        tmpt = line.strip('() \n\t').split()
+        if len(tmpt) == 3:
+            seTable.append(tmpt)
+    
+    srvList = [config['ComputingServiceId']]
+    if config['EMIES'] == 'yes':
+        srvList.append(config['ESComputingServiceId'])
 
-    # No validity, since this is static info
+    for srvId in srvList:
+        
+        for seDefs in seTable:
+            
+            out.write("dn: GLUE2ToStorageServiceID=%s_%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
+                       % (srvId, seDefs[0], srvId))
+            out.write("objectClass: GLUE2Entity\n")
+            out.write("objectClass: GLUE2ToStorageService\n")
+            out.write("GLUE2ToStorageServiceID: %s_%s\n" % (srvId, seDefs[0]))
+            out.write("GLUE2EntityCreationTime: %s\n" % now)
+            out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-tostorageservice-static\n")
+            out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+            out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+            out.write("Glue2EntityName: %s_%s\n" % (srvId, seDefs[0]))
+            out.write("GLUE2ToStorageServiceLocalPath: %s\n" % seDefs[1])
+            out.write("GLUE2ToStorageServiceRemotePath: %s\n" % seDefs[2])
+            out.write("GLUE2ToStorageServiceComputingServiceForeignKey: %s\n" % srvId)
+            out.write("GLUE2ToStorageServiceStorageServiceForeignKey: %s\n" % seDefs[0])
+            out.write("\n")
 
-    # Embed some metadata to help with debugging
-    print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-tostorageservice-static\n";
-    print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
-    print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
-
-    # For name let's use the Id
-    print "Glue2EntityName: $GLUE2ToStorageServiceID\n";
 
 
-    # Local Path
-    print "GLUE2ToStorageServiceLocalPath: $ItemsofSE[1]\n";
 
-    # Remote path
-    print "GLUE2ToStorageServiceRemotePath: $ItemsofSE[2]\n";
+if __name__ == "__main__":
+    main()
 
-    # Finally print the upward links
-    print "GLUE2ToStorageServiceComputingServiceForeignKey: $ServiceID\n";
-    print "GLUE2ToStorageServiceStorageServiceForeignKey: $ItemsofSE[0]\n";
-
-    # Print a newline to finish the object
-    print "\n";
-   
-}
-
-exit 0;
