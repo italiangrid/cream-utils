@@ -1,218 +1,173 @@
-#!/usr/bin/perl -w
-#
-# glite-ce-glue2-applicationenvironment-dynamic: an information provider 
-# to be used as GIP provider for the ApplicationEnvironment object, in 
-# v 2.0 of the GLUE schema
-#
-# Author: Massimo Sgaravatto, but code heavily copied from
-# lcg-info-dynamic-software written by Laurence Field
-#
-# Ref: http://www.ogf.org/documents/GFD.147.pdf
-#      http://glue20.web.cern.ch/glue20/
-# Copyright (c) Members of the EGEE Collaboration. 2010.
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
 # See http://www.eu-egee.org/partners/ for details on the copyright
-# holders.
+# holders.  
 #
-#     Licensed under the Apache License, Version 2.0 (the "License");
-# you may not use this file except in compliance with the License.
-# You may obtain a copy of the License at
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
 #
-#   http://www.apache.org/licenses/LICENSE-2.0
+#     http://www.apache.org/licenses/LICENSE-2.0 
 #
-# Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an "AS IS" BASIS,
-# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-# See the License for the specific language governing permissions and
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
 # limitations under the License.
 
-use strict;
-use FileHandle;
-use POSIX qw(strftime);
+import sys
+import re
+import socket
+import time
+import os
+import os.path
 
-my $edgpath   = "/opt/edg/var/info";
-my $glitepath = "/opt/glite/var/info" ;
+def readTagsFromLDIF(scTable, ldiffilename):
 
-my %subclusters ;
-my $AEId;
-
-
-#
-# Version number for this code
-my $version = "1.0";
-
-
-my $host = `hostname -f`;
-chomp($host);
-
-my $confile;
-
-# Read in the configuration file (first argument)
-
-my %config = (
-              ComputingServiceId => '',
-              );
-
-if ($ARGV[0]){
-    $confile = $ARGV[0];
-    my $fh = new FileHandle $confile
-	or die "Error: Can't open configuration file: $ARGV[0]\n";
-    foreach (<$fh>){
-        if ((! m/^\#/) & (m/=/)){
-# For lines containing an = and not starting with #
-            m/^(.*?)=\s*(.*)\s*$/;
-# Split on the first =, no leading or trailing whitespace in the value
-            my $key=$1;
-            my $value=$2;
-            $key=~s/\s+//g;
-            $config{$key}=$value;
-        }
-    }
-open (LDIF, $ARGV[1]) || die "Cannot open '$ARGV[1]': $!,";
-}
-else{
-    print STDERR "Usage: glite-ce-glue2-applicationenvironment-dynamic <config-file> <glue1 static cluster ldif file>\n";
-    exit 1;
-}
-
-
-# Holds all the data.
-#  $subclusters{<SubClusterUniqueId>}{'dn'} = <dn>
-#     Stores the DN per SubCluster.
-#  $subclusters{<SubClusterUniqueId>}{'tags'}{<tag>} = 1
-#     Stores the key value of a <tag> = 1 if present per SubCluster.
-
-
-
-
-my $cid ;
-while (<LDIF>) {
-    chomp;
-    if (/dn:\s+GlueSubClusterUniqueID=([^,]*),.*$/){
-	$cid = $1 ;
-#	$subclusters{$cid}{'dn'} = $_ ;
-    }
-    elsif (/^GlueHostApplicationSoftwareRunTimeEnvironment:\s+(.*)$/) {
-	$subclusters{$cid}{'tags'}{$1} = 1 ;
-    }
-
-}
-close (LDIF);
-
-# Read in tags from old edg location if there is one.
-# A little inefficent since reading files for every
-# SubCluster but we expect this to die anyway with
-# multiple subclusters.
-foreach my $sc ( keys %subclusters ) {
-  # Readin in $edgpath
-    foreach my $tag ( &tagsFromDir($edgpath) ) {
-	$subclusters{$sc}{'tags'}{lc($tag)} = $tag ;
-    }
-  # Readin from $glitepath
-    foreach my $tag ( &tagsFromDir("$glitepath/$sc") ) {
-	$subclusters{$sc}{'tags'}{lc($tag)} = $tag ;
-    }
-}
-
-
-# Finally dump the output.
-
-
-# Get service id from conf file
-my $ServiceID = $config{ComputingServiceId};
-
-# No white space. No "
-$ServiceID =~ s/\s+//g;
-$ServiceID =~ s/\"//g;
-
-# ManagerId is ServiceId + "_Manager"
-my $ManagerId = $ServiceID . "_Manager";
-
-
-my $bind_dn = "GLUE2ServiceID=$ServiceID,GLUE2GroupID=resource,o=glue";
-
-# Times are mandated to be UTC only
-my $TimeNow = strftime("%Y-%m-%dT%H:%M:%SZ", gmtime());
-
-# Hardwire the data validity period to 1 hour for now
-my $validity = "3600";
-
-
-foreach my $sc ( keys %subclusters ) {
-
-    # Print applicationenvironments belonging to subcluster $sc    
+    scRegex = re.compile('^\s*dn:\s+GlueSubClusterUniqueID=([^,]+),')
+    asrRegex = re.compile('^\s*GlueHostApplicationSoftwareRunTimeEnvironment:\s+([^$]+)$')
+    ldiffile = None
     
-    # Now start outputting LDIF lines for the Manager object.
-    # Note that once we get here we are committed to printing a
-    # complete, valid object. Start with the DN ...
-
-    my $resource_bind_dn = "GLUE2ResourceId=$sc," . $bind_dn;
-
-
-
-    foreach my $tag ( sort keys %{$subclusters{$sc}{'tags'}} ) {
-
-        # ApplicationEnvironment ID is concatenation of 
-        #RTE and ExecutionEnvironment ID 
-        $AEId= $tag . "_" . $sc;
-
-        print "dn: GLUE2ApplicationEnvironmentId=$AEId,$resource_bind_dn\n";
-
-        # Print the boilerplate objectclass declarations and unique ID
-
-	print "objectClass: GLUE2Entity\n";
-	print "objectClass: GLUE2ApplicationEnvironment\n";
-
-	print "GLUE2EntityCreationTime: $TimeNow\n";
-
-        # Validity is hardwired above
-	print "GLUE2EntityValidity: $validity\n";
-
-        # Id
-        print "GLUE2ApplicationEnvironmentID: $AEId\n";
-
-
-        # Use OtherInfo to embed some metadata to help with debugging
-
-        print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-applicationenvironment-dynamic\n";
-	print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
-	print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
-
-
-        # As GLUE2ApplicationEnvironmentAppName we use the tag name
-	print "GLUE2ApplicationEnvironmentAppName: $tag\n"  ;
-
-        # Finally link to the Manager
-        print "GLUE2ApplicationEnvironmentComputingManagerForeignKey: $ManagerId\n";
-        print "\n";
-
+    try:
+        ldiffile = open(ldiffilename)
         
-    }
-}
+        currSC = None
+        for line in ldiffile:
+            parsed = scRegex.match(line)
+            if parsed:
+                currSC = parsed.group(1).strip()
+                scTable[currSC] = []
+                continue
+            
+            parsed = asrRegex.match(line)
+            if parsed and currSC:
+                scTable[currSC].append(parsed.group(1).strip())
+        
+    finally:
+        if ldiffile:
+            ldiffile.close()
+
+def readTagsFromFile(topDir):
+
+    #
+    # TODO see https://savannah.cern.ch/bugs/?96306
+    #
+    result = []
+    if not os.path.isdir(topDir):
+        return result
+    
+    for subItem in os.listdir(topDir):
+        subDir = topDir + '/' + subItem
+        tagfilename = '%s/%s.list' % (subDir, subItem)
+        if not os.path.isdir(subDir) or not os.path.isfile(tagfilename):
+                continue
+        
+        tagfile = None
+        try:
+            tagfile = open(tagfilename)
+            for line in tagfile:
+                tmps = line.strip()
+                if len(tmps) == 0 or tmps.startswith('#'):
+                    continue
+                result = result + tmps.split()
+        finally:
+            if tagfile:
+                tagfile.close()
+
+    return result
+
+def readTagsFromDir(scTable):
+
+    globalTags = readTagsFromFile("/opt/edg/var/info")
+
+    for scId in scTable:
+        localTags = readTagsFromFile("/opt/glite/var/info/" + scId)
+        scTable[scId] = scTable[scId] + (globalTags + localTags)
 
 
-# The End.
+def main():
+
+    pRegex = re.compile('^\s*([^=\s]+)\s*=([^$]+)$')
+
+    config = {}
+
+    infoprovVersion = "1.1"
+    hostname = socket.getfqdn()
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    # Hardwire the data validity period to 1 hour for now
+    validity = 3600
+    
+    conffile = None
+    foundErr = False
+    try:
+        if len(sys.argv) <> 3:
+            raise Exception("Usage: glite-ce-glue2-applicationenvironment-dynamic <config-file> <glue1 static cluster ldif file>")
+            
+        conffile = open(sys.argv[1])
+        for line in conffile:
+            parsed = pRegex.match(line)
+            if parsed:
+                config[parsed.group(1)] = parsed.group(2).strip(' \n\t"')
+            else:
+                tmps = line.strip()
+                if len(tmps) > 0 and not tmps.startswith('#'):
+                    raise Exception("Error parsing configuration file " + sys.argv[1])
+    
+        if not 'ComputingServiceId' in config:
+            raise Exception("Missing attribute ComputingServiceId")
+        if not "EMIES" in config:
+            config["EMIES"] = "no"
+        if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
+            config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+    
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        foundErr = True
+
+    if conffile:
+        conffile.close()
+    if foundErr:
+        sys.exit(1)
+
+    out = sys.stdout
+
+    scTable = {}
+    
+    try:
+
+        readTagsFromLDIF(scTable, sys.argv[2])
+
+        readTagsFromDir(scTable)
+
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        sys.exit(1)
+
+    srvList = [config['ComputingServiceId']]
+    if config['EMIES'] == 'yes':
+        srvList.append(config['ESComputingServiceId'])
+
+    for srvId in srvList:
+        
+        for scId in scTable:
+        
+            for tag in scTable[scId]:
+        
+                out.write("dn: GLUE2ApplicationEnvironmentId=%s_%s,GLUE2ResourceId=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
+                          % (tag, scId, scId, srvId))
+                out.write("objectClass: GLUE2Entity\n")
+                out.write("objectClass: GLUE2ApplicationEnvironment\n")
+                out.write("GLUE2EntityCreationTime: %s\n" % now)
+                out.write("GLUE2EntityValidity: %d\n" % validity)
+                out.write("GLUE2ApplicationEnvironmentID: %s_%s\n" % (tag, scId))
+                out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-applicationenvironment-dynamic\n")
+                out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+                out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
+                out.write("GLUE2ApplicationEnvironmentAppName: %s\n" % tag)
+                out.write("GLUE2ApplicationEnvironmentComputingManagerForeignKey: %s_Manager\n" % srvId)
+                out.write("\n")
 
 
-# Take a directory d and look for d/<vo>/<vo>.list files.
-# Return an array of them.
+if __name__ == "__main__":
+    main()
 
-sub tagsFromDir() {
-    my $d =  shift ;
-    my @tags ;
-    opendir (DIR, $d) or return @tags ;
-    my @contents = readdir (DIR) or return @tags ;
-    foreach my $f ( @contents ) {
-	next if ($f eq "." or $f eq "..");
-	if ( -r "$d/$f/$f.list" ) {
-	    open(TAGS,"$d/$f/$f.list")  ;
-	    while(<TAGS>) {
-		chomp;
-              # https://savannah.cern.ch/bugs/?59871
-              #Split on new lines.
-		push(@tags,split('\s+',$_))  if $_ =~ m/\S+/ ;
-	    }
-
-	}
-    }
-    return @tags ;
-}
