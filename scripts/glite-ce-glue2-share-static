@@ -68,11 +68,22 @@ def main():
     
     shareList = config['Shares'].strip('()').split(',')
 
-    srvList = [config['ComputingServiceId']]
+    #
+    # We used regular expression to discriminate the kind of service
+    # the endpoint must be in the form <host>_<interfacename>
+    #
+    srvTable = {}
+    srvTable[config['ComputingServiceId']] = re.compile('[^_]+_org\.glite\.ce\.CREAM')
     if config['EMIES'] == 'yes':
-        srvList.append(config['ESComputingServiceId'])
+        #
+        # TODO select only meaningful port types
+        #
+        tmps = '(creation|activitymanagement|delegation|activityinfo|resourceinfo)'
+        srvTable[config['ESComputingServiceId']] = re.compile('[^_]+_org\.ogf\.emies\.%s' % tmps) 
 
-    for srvId in srvList:
+    for srvId in srvTable:
+    
+        srvRe = srvTable[srvId]
         
         for shareItem in shareList:
         
@@ -95,14 +106,17 @@ def main():
             
             owner = config[shKeys[1]]
             
+            #
+            # TODO is it necessary for ES?
+            #
             ceIdList = config[shKeys[2]].strip('()').split(',')
                         
             envList = config[shKeys[3]].strip('()').split(',')
-            if len(envList) == 0:
-                sys.stderr.write("Execution environment list is empty")
-                sys.exit(1)
             
-            epList = config[shKeys[4]].strip('()').split(',')
+            epList = []
+            for tmpId in config[shKeys[4]].strip('()').split(','):
+                if srvRe.match(tmpId):
+                    epList.append(tmpId)
             
             acbrList = config[shKeys[5]].strip('()').split(',')
             
@@ -121,7 +135,8 @@ def main():
             
             out.write("GLUE2ShareID: %s\n" % (shareId))
             out.write("GLUE2ShareDescription: Share of %s for %s\n" % (qname, owner))
-            out.write("GLUE2ShareResourceForeignKey: %s\n" % envList[0].strip())
+            if len(envList) > 0:
+                out.write("GLUE2ShareResourceForeignKey: %s\n" % envList[0].strip())
             for epItem in epList:
                 out.write("GLUE2ShareEndpointForeignKey: %s\n" % epItem.strip())
             out.write("GLUE2ShareServiceForeignKey: %s\n" % srvId)
@@ -142,7 +157,8 @@ def main():
             out.write("GLUE2ComputingShareWaitingJobs: 444444\n")
             out.write("GLUE2ComputingShareEstimatedAverageWaitingTime: 2146660842\n")
             out.write("GLUE2ComputingShareEstimatedWorstWaitingTime: 2146660842\n")
-            out.write("GLUE2ComputingShareExecutionEnvironmentForeignKey: %s\n" % envList[0].strip())
+            if len(envList) > 0:
+                out.write("GLUE2ComputingShareExecutionEnvironmentForeignKey: %s\n" % envList[0].strip())
             for epItem in epList:
                 out.write("GLUE2ComputingShareComputingEndpointForeignKey: %s\n" % epItem.strip())
             out.write("GLUE2ComputingShareComputingServiceForeignKey: %s\n" % srvId)
