@@ -90,12 +90,12 @@ def main():
     srvTable = {}
     srvTable[config['ComputingServiceId']] = {
         'type' : 'org.glite.ce.CREAM',
-        'capabilites' : ['executionmanagement.jobexecution']
+        'capabilities' : ['executionmanagement.jobexecution']
     }
     if config['EMIES'] == 'yes':
         srvTable[config["ESComputingServiceId"]] = {
             'type' : 'org.ogf.emies',
-            'capabilites' : ['executionmanagement.jobexecution',
+            'capabilities' : ['executionmanagement.jobexecution',
                              'executionmanagement.jobdescription',
                              'executionmanagement.jobmanagement',
                              'information.discovery',
@@ -121,7 +121,7 @@ def main():
         
         out.write("GLUE2ServiceID: %s\n" % srvId)
         out.write("GLUE2ServiceType: %s\n" % srvDefs['type'])
-        for capaItem in srvDefs['capabilites']:
+        for capaItem in srvDefs['capabilities']:
             out.write("GLUE2ServiceCapability: %s\n" % capaItem)
         out.write("GLUE2ServiceQualityLevel: production\n")
         out.write("GLUE2ServiceComplexity: endpointType=%d, share=%d, resource=%d\n"
