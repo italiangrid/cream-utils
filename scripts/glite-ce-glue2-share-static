@@ -73,17 +73,17 @@ def main():
     # the endpoint must be in the form <host>_<interfacename>
     #
     srvTable = {}
-    srvTable[config['ComputingServiceId']] = re.compile('[^_]+_org\.glite\.ce\.CREAM')
+    srvTable[config['ComputingServiceId']] = (re.compile('[^_]+_org\.glite\.ce\.CREAM'), True)
     if config['EMIES'] == 'yes':
         #
         # TODO select only meaningful port types
         #
         tmps = '(creation|activitymanagement|delegation|activityinfo|resourceinfo)'
-        srvTable[config['ESComputingServiceId']] = re.compile('[^_]+_org\.ogf\.emies\.%s' % tmps) 
+        srvTable[config['ESComputingServiceId']] = (re.compile('[^_]+_org\.ogf\.emies\.%s' % tmps), False) 
 
     for srvId in srvTable:
     
-        srvRe = srvTable[srvId]
+        srvRe, isLegacy = srvTable[srvId]
         
         for shareItem in shareList:
         
@@ -106,9 +106,6 @@ def main():
             
             owner = config[shKeys[1]]
             
-            #
-            # TODO is it necessary for ES?
-            #
             ceIdList = config[shKeys[2]].strip('()').split(',')
                         
             envList = config[shKeys[3]].strip('()').split(',')
@@ -127,8 +124,12 @@ def main():
             out.write("objectClass: GLUE2Share\n")
             out.write("objectClass: GLUE2ComputingShare\n")
             out.write("GLUE2EntityCreationTime: %s\n" % now)
-            for ceId in ceIdList:
-                out.write("GLUE2EntityOtherInfo: CREAMCEId=%s\n" % ceId.strip())
+            if isLegacy:
+                for ceId in ceIdList:
+                    out.write("GLUE2EntityOtherInfo: CREAMCEId=%s\n" % ceId.strip())
+                out.write("GLUE2EntityOtherInfo: ServiceType=org.glite.ce.CREAM\n")
+            else:
+                out.write("GLUE2EntityOtherInfo: ServiceType=org.ogf.emies\n")
             out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-share-static\n")
             out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
             out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
