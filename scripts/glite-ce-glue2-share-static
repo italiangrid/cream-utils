@@ -166,7 +166,7 @@ def main():
             out.write("\n")
             
             
-            out.write("GLUE2PolicyID=%s_policy,GLUE2ShareId=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue"
+            out.write("dn: GLUE2PolicyID=%s_policy,GLUE2ShareId=%s,GLUE2ServiceID=%s,GLUE2GroupID=resource,o=glue\n"
                       % (shareId, shareId, srvId))
             out.write("objectClass: GLUE2Entity\n")
             out.write("objectClass: GLUE2Policy\n")
