@@ -32,6 +32,7 @@ install(FILES ${CMAKE_SOURCE_DIR}/scripts/glite-ce-glue2-computingservice-static
 install(FILES ${CMAKE_SOURCE_DIR}/scripts/glite_cream_load_monitor
               ${CMAKE_SOURCE_DIR}/scripts/glite-cream-copyProxyToSandboxDir.sh
               ${CMAKE_SOURCE_DIR}/scripts/glite-cream-purger.sh
+              ${CMAKE_SOURCE_DIR}/scripts/createAndPopulateDB.sh
         DESTINATION usr/bin)
 
 install(FILES ${CMAKE_SOURCE_DIR}/scripts/JobDBAdminPurger.sh
