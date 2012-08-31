@@ -36,8 +36,14 @@ install(FILES ${CMAKE_SOURCE_DIR}/scripts/glite_cream_load_monitor
               ${CMAKE_SOURCE_DIR}/scripts/glite-cream-copyProxyToSandboxDir.sh
               ${CMAKE_SOURCE_DIR}/scripts/glite-cream-purger.sh
               ${CMAKE_SOURCE_DIR}/scripts/createAndPopulateDB.sh
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE
         DESTINATION usr/bin)
 
 install(FILES ${CMAKE_SOURCE_DIR}/scripts/JobDBAdminPurger.sh
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                    GROUP_READ GROUP_EXECUTE
+                    WORLD_READ WORLD_EXECUTE
         DESTINATION usr/sbin)
 
