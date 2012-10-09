@@ -1,0 +1,126 @@
+#!/usr/bin/python
+# Copyright (c) Members of the EGEE Collaboration. 2004. 
+# See http://www.eu-egee.org/partners/ for details on the copyright
+# holders.  
+#
+# Licensed under the Apache License, Version 2.0 (the "License"); 
+# you may not use this file except in compliance with the License. 
+# You may obtain a copy of the License at 
+#
+#     http://www.apache.org/licenses/LICENSE-2.0 
+#
+# Unless required by applicable law or agreed to in writing, software 
+# distributed under the License is distributed on an "AS IS" BASIS, 
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. 
+# See the License for the specific language governing permissions and 
+# limitations under the License.
+
+import sys
+import re
+import socket
+import time
+import os
+import os.path
+
+def readTagsFromLDIF(scTable, ldiffilename):
+
+    scRegex = re.compile('^\s*dn:\s+GlueSubClusterUniqueID=[^$]+$')
+    asrRegex = re.compile('^\s*GlueHostApplicationSoftwareRunTimeEnvironment:\s+([^$]+)$')
+    ldiffile = None
+    
+    try:
+        ldiffile = open(ldiffilename)
+        
+        currSC = None
+        for line in ldiffile:
+            parsed = scRegex.match(line)
+            if parsed:
+                currSC = parsed.group(0).strip()
+                scTable[currSC] = []
+                continue
+            
+            parsed = asrRegex.match(line)
+            if parsed and currSC:
+                scTable[currSC].append(parsed.group(1).strip())
+        
+    finally:
+        if ldiffile:
+            ldiffile.close()
+
+def readTagsFromFile(topDir):
+
+    #
+    # TODO see https://savannah.cern.ch/bugs/?96306
+    #
+    result = []
+    if not os.path.isdir(topDir):
+        return result
+    
+    for subItem in os.listdir(topDir):
+        subDir = topDir + '/' + subItem
+        tagfilename = '%s/%s.list' % (subDir, subItem)
+        if not os.path.isdir(subDir) or not os.path.isfile(tagfilename):
+                continue
+        
+        tagfile = None
+        try:
+            tagfile = open(tagfilename)
+            for line in tagfile:
+                tmps = line.strip()
+                if len(tmps) == 0 or tmps.startswith('#'):
+                    continue
+                result = result + tmps.split()
+        finally:
+            if tagfile:
+                tagfile.close()
+
+    return result
+
+def readTagsFromDir(scTable):
+
+    globalTags = readTagsFromFile("/opt/edg/var/info")
+    
+    scIdRegex = re.compile('^\s*dn:\s+GlueSubClusterUniqueID=([^,]+),')
+
+    for scDN in scTable:
+        parsed = scIdRegex.match(scDN)
+        if parsed:
+            scId = parsed.group(1).strip()
+            localTags = readTagsFromFile("/opt/glite/var/info/" + scId)
+            scTable[scDN] = scTable[scDN] + (globalTags + localTags)
+
+
+def main():
+
+    if len(sys.argv) <> 2:
+        sys.stderr.write("Usage: %s <glue1 static cluster ldif file>\n" % sys.argv[0])
+        sys.exit(1)
+
+    scTable = {}
+    
+    out = sys.stdout
+
+    try:
+
+        readTagsFromLDIF(scTable, sys.argv[1])
+        
+        readTagsFromDir(scTable)
+
+    except Exception, ex:
+        sys.stderr.write(str(ex) + '\n')
+        sys.exit(1)
+
+    for scDN in scTable:
+        out.write('-->%s\n' % scDN)
+        for tag in scTable[scDN]:
+            out.write("GlueHostApplicationSoftwareRunTimeEnvironment: %s\n" % tag)
+        out.write("\n")
+
+
+
+
+
+if __name__ == "__main__":
+    main()
+
+
