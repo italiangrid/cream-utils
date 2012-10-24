@@ -95,13 +95,19 @@ def main():
     if config['EMIES'] == 'yes':
         srvTable[config["ESComputingServiceId"]] = {
             'type' : 'org.ogf.emies',
-            'capabilities' : ['executionmanagement.jobexecution',
-                             'executionmanagement.jobdescription',
-                             'executionmanagement.jobmanagement',
-                             'information.discovery',
-                             'information.discovery.resource',
-                             'information.monitoring',
-                             'security.delegation']
+            'capabilities' : ['executionmanagement.jobcreation',
+                              'executionmanagement.jobdescription',
+                              'executionmanagement.jobmanagement',
+                              'data.access.stageindir.gridftp',
+                              'data.access.stageoutdir.gridftp',
+                              'data.transfer.cepull.*',
+                              'data.transfer.cepush.*',
+                              'information.monitoring',
+                              'information.discovery',
+                              'information.discovery.resource', 
+                              'information.lookup.job',
+                              'information.query.xpath1',
+                              'security.delegation']
         }
     
     out = sys.stdout

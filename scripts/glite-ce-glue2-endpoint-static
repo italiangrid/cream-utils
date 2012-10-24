@@ -73,6 +73,11 @@ def main():
             config["ACBR"] = "ALL"
         if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
             config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+        if not "ESInterfaceVersion" in config and config["EMIES"] == "yes":
+            config["ESInterfaceVersion"] = "1.15"
+        if not "ImplementationVersion" in config:
+            config["ImplementationVersion"] = "Undefined"
+
     
     except Exception, ex:
         sys.stderr.write(str(ex) + '\n')
@@ -136,7 +141,6 @@ def main():
         'wsdl' : "https://%s:8443/ce-cream/services/CREAM2?wsdl" % hostname,
         'capabilities' : ['executionmanagement.jobexecution'],
         'ifname' : 'org.glite.ce.CREAM',
-        'impname' : 'CREAM',
         'profile' : 'http://www.ws-i.org/Profiles/BasicProfile-1.0.html',
         'semantic' : 'http://wiki.italiangrid.org/twiki/bin/view/CREAM/UserGuide',
         'jdescr' : 'glite:jdl',
@@ -144,69 +148,64 @@ def main():
     }
     
     if config['EMIES'] == 'yes':
-        srvTable[hostname + "_org.ogf.emies.creation"] = {
+        srvTable[hostname + "_org.ogf.glue.emies.activitycreation"] = {
             'srvID' : config['ESComputingServiceId'],
-            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
-            'wsdl' : "https://%s:8443/ce-cream-es/services/Creation?wsdl" % hostname,
-            'capabilities' : ['executionmanagement.jobexecution', 'executionmanagement.jobdescription'],
-            'ifname' : 'org.ogf.emies.creation',
-            'impname' : 'Creation',
+            'url' : "https://%s:8443/ce-cream-es/services/ActivityCreationService" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityCreationService?wsdl" % hostname,
+            'capabilities' : ['executionmanagement.jobcreation', 'executionmanagement.jobdescription', 'data.access.stageindir.gridftp', 'data.access.stageoutdir.gridftp'],
+            'ifname' : 'org.ogf.glue.emies.activitycreation',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'jdescr' : 'emies:adl',
             'pubcomp' : True
         }
     
-        srvTable[hostname + "_org.ogf.emies.activitymanagement"] = {
+        srvTable[hostname + "_org.ogf.glue.emies.activitymanagement"] = {
             'srvID' : config['ESComputingServiceId'],
-            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
-            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityManagement?wsdl" % hostname,
-            'capabilities' : ['executionmanagement.jobmanagement', 'information.discovery'],
-            'ifname' : 'org.ogf.emies.activitymanagement',
-            'impname' : 'ActivityManagement',
+            'url' : "https://%s:8443/ce-cream-es/services/ActivityManagementService" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityManagementService?wsdl" % hostname,
+            'capabilities' : ['executionmanagement.jobmanagement', 'information.lookup.job', 'data.access.stageindir.gridftp', 'data.access.stageoutdir.gridftp', 'data.transfer.cepull.*', 'data.transfer.cepush.*'],
+            'ifname' : 'org.ogf.glue.emies.activitymanagement',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
-            'jdescr' : 'emies:adl',
+            'jdescr' : '',
             'pubcomp' : True
         }
         
-        srvTable[hostname + "_org.ogf.emies.delegation"] = {
+        srvTable[hostname + "_org.ogf.glue.emies.delegation"] = {
             'srvID' : config['ESComputingServiceId'],
-            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
-            'wsdl' : "https://%s:8443/ce-cream-es/services/Delegation?wsdl" % hostname,
+            'url' : "https://%s:8443/ce-cream-es/services/DelegationService" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/DelegationService?wsdl" % hostname,
             'capabilities' : ['security.delegation'],
-            'ifname' : 'org.ogf.emies.delegation',
-            'impname' : 'Delegation',
+            'ifname' : 'org.ogf.glue.emies.delegation',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
-            'jdescr' : 'emies:adl',
+            'jdescr' : '',
             'pubcomp' : True
         }
 
-        srvTable[hostname + "_org.ogf.emies.activityinfo"] = {
+        srvTable[hostname + "_org.ogf.glue.emies.activityinfo"] = {
             'srvID' : config['ESComputingServiceId'],
-            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
-            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityInfo?wsdl" % hostname,
-            'capabilities' : ['information.monitoring', 'information.discovery'],
-            'ifname' : 'org.ogf.emies.activityinfo',
-            'impname' : 'ActivityInfo',
+            'url' : "https://%s:8443/ce-cream-es/services/ActivityInfoService" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ActivityInfoService?wsdl" % hostname,
+            'capabilities' : ['information.monitoring', 'information.discovery', 'information.lookup.job'],
+            'ifname' : 'org.ogf.glue.emies.activityinfo',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'jdescr' : '',
-            'pubcomp' : False
+            'pubcomp' : True
         }
 
-        srvTable[hostname + "_org.ogf.emies.resourceinfo"] = {
+        srvTable[hostname + "_org.ogf.glue.emies.resourceinfo"] = {
             'srvID' : config['ESComputingServiceId'],
-            'url' : "https://%s:8443/ce-cream-es/services" % hostname,
-            'wsdl' : "https://%s:8443/ce-cream-es/services/ResourceInfo?wsdl" % hostname,
-            'capabilities' : ['information.discovery.resource'],
-            'ifname' : 'org.ogf.emies.resourceinfo',
-            'impname' : 'ResourceInfo',
+            'url' : "https://%s:8443/ce-cream-es/services/ResourceInfoService" % hostname,
+            'wsdl' : "https://%s:8443/ce-cream-es/services/ResourceInfoService?wsdl" % hostname,
+            'capabilities' : ['information.discovery.resource', 'information.query.xpath1'],
+            'ifname' : 'org.ogf.glue.emies.resourceinfo',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'jdescr' : '',
-            'pubcomp' : False
+            'pubcomp' : True
         }
 
     #end if for EMIES
@@ -244,12 +243,16 @@ def main():
             out.write("GLUE2EndpointCapability: %s\n" % capaItem)
         out.write("GLUE2EndpointTechnology: webservice\n")
         out.write("GLUE2EndpointInterfaceName: %s\n" % srvDefs['ifname'])
-        out.write("GLUE2EndpointInterfaceVersion: %s\n" % config['InterfaceVersion'])
+        if config['EMIES'] == 'yes':
+           out.write("GLUE2EndpointInterfaceVersion: %s\n" % config['ESInterfaceVersion'])
+        else:
+           out.write("GLUE2EndpointInterfaceVersion: %s\n" % config['InterfaceVersion'])
         out.write("GLUE2EndpointWSDL: %s\n" % srvDefs['wsdl'])
         out.write("GLUE2EndpointSupportedProfile: %s\n" % srvDefs['profile'])
         out.write("GLUE2EndpointSemantics: %s\n" % srvDefs['semantic'])
         out.write("GLUE2EndpointImplementor: gLite\n")
-        out.write("GLUE2EndpointImplementationName: %s\n" % srvDefs['impname'])
+        out.write("GLUE2EndpointImplementationName: CREAM\n")
+        out.write("GLUE2EndpointImplementationVersion: %s\n" % config["ImplementationVersion"])
         out.write("GLUE2EndpointQualityLevel: production\n")
     
         # Hardwired value for GLUE2EndpointHealthState and GLUE2EndpointHealthStateInfo
