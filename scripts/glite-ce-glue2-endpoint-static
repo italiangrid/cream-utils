@@ -181,7 +181,7 @@ def main():
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'jdescr' : '',
-            'pubcomp' : True
+            'pubcomp' : False
         }
 
         srvTable[hostname + "_org.ogf.glue.emies.activityinfo"] = {
@@ -205,7 +205,7 @@ def main():
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'jdescr' : '',
-            'pubcomp' : True
+            'pubcomp' : False
         }
 
     #end if for EMIES
