@@ -111,7 +111,7 @@ def main():
         sys.exit(1)
 
     for scDN in scTable:
-        out.write('-->%s\n' % scDN)
+        out.write('%s\n' % scDN)
         for tag in scTable[scDN]:
             out.write("GlueHostApplicationSoftwareRunTimeEnvironment: %s\n" % tag)
         out.write("\n")
