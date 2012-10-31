@@ -21,6 +21,7 @@ import socket
 import time
 import shlex
 import subprocess
+import glob
 
 def trunc(inStr):
     tmps = inStr.strip()
@@ -63,6 +64,8 @@ def main():
                 raise Exception("Missing attribute %s" % mItem)
         if not "HostCertificatePath" in config:
             config["HostCertificatePath"] = "/etc/grid-security/hostcert.pem"
+        if not "TrustedCAPath" in config:
+            config["TrustedCAPath"] = "/etc/grid-security/certificates"
         if not "EMIVersionPath" in config:
             config["EMIVersionPath"] = '/etc/emi-version'
         if not "Argus" in config:
@@ -93,7 +96,7 @@ def main():
     hostDN = None
     issuerDN = None
     try:
-        cmdargs = shlex.split('openssl x509 -in %s -noout -subject -issuer' % config["HostCertificatePath"])
+        cmdargs = shlex.split('openssl x509 -in %s -noout -subject -issuer -nameopt RFC2253' % config["HostCertificatePath"])
         process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         pOut, pErr = process.communicate()
         if process.returncode > 0:
@@ -125,8 +128,25 @@ def main():
     if emiversionfile:
         emiversionfile.close()
     
-    # TrustedCA: hardwired for now
-    trustedCAs = ['IGTF']
+    #trustedCAs = ['IGTF']
+    trustedCAs = list()
+    
+    for CAFile in glob.glob(config["TrustedCAPath"] + '/*.pem'):
+        try:
+            cmdargs = shlex.split('openssl x509 -in %s -noout -subject -nameopt RFC2253' % CAFile)
+            process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+            pOut, pErr = process.communicate()
+            if process.returncode > 0:
+                raise Exception("Error parsing host certificate: " + pErr)
+
+            parsed = pRegex.match(pOut)
+            if parsed:
+                trustedCAs.append(parsed.group(2).strip(' \n\t"'))
+        except Exception, ex:
+            sys.stderr.write(str(ex) + '\n')
+    
+    
+    
     
     acbrList = config["ACBR"].split()
     ownList = config['Owner'].split()
@@ -263,7 +283,7 @@ def main():
     
         out.write("GLUE2EndpointIssuerCA: %s\n" % issuerDN)
         for tCA in trustedCAs:
-            out.write("GLUE2EndpointTrustedCA: %s\n" % trunc(tCA))
+            out.write("GLUE2EndpointTrustedCA: %s\n" % tCA)
     
         out.write("GLUE2EndpointDownTimeInfo: See the GOC DB for downtimes: https://goc.egi.eu/\n")
         out.write("GLUE2EndpointServiceForeignKey: %s\n" % srvDefs['srvID'])
