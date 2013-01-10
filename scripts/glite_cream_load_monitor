@@ -263,10 +263,10 @@ close (IN);
 # Get file descriptor used by tomcat process
 sub get_fdtomcat_usage{
 
-  my $tomcatpidfile= "/var/run/tomcat5.pid";
-  if (-e $tomcatpidfile) 
+  my @pid_files = glob "/var/run/tomcat*.pid";
+  if ( $#pid_files >= 0) 
     {
-     my $tomcatpid=`cat /var/run/tomcat5.pid`;
+     my $tomcatpid=`cat ${pid_files[0]}`;
      chomp $tomcatpid;
      my $fdtomcatfile= "/proc/" . $tomcatpid . "/fd";
      $tomcatfd=`ls -l $fdtomcatfile | wc -l`;
