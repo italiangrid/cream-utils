@@ -104,7 +104,7 @@ def main():
             try:
             
                 smpSize = int(config[resKeys[0]])
-                cores = int(config[resKeys[1]])
+                cores = float(config[resKeys[1]])
                 platform = config[resKeys[2]]
                 lCPUs = int(config[resKeys[3]])
                 pCPUs = int(config[resKeys[4]])
@@ -149,7 +149,7 @@ def main():
             out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
             out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
             out.write("GLUE2EntityOtherInfo: SmpSize=%d\n" % smpSize)
-            out.write("GLUE2EntityOtherInfo: Cores=%d\n" % cores)
+            out.write("GLUE2EntityOtherInfo: Cores=%f\n" % cores)
 
             out.write("GLUE2ResourceID: %s\n" % resId)
             out.write("GLUE2ResourceManagerForeignKey: %s_Manager\n" % srvId)
@@ -167,7 +167,7 @@ def main():
             out.write("GLUE2ExecutionEnvironmentVirtualMemorySize: %d\n" % virtSize)
             out.write("GLUE2ExecutionEnvironmentOSFamily: %s\n" % osType)
             out.write("GLUE2ExecutionEnvironmentOSName: %s\n" % osName)
-            out.write("GLUE2ExecutionEnvironmentOperatingSystemRelease = %s\n" % osVers)
+            out.write("GLUE2ExecutionEnvironmentOperatingSystemRelease: %s\n" % osVers)
             out.write("GLUE2ExecutionEnvironmentConnectivityIn: %s\n" % inConn)
             out.write("GLUE2ExecutionEnvironmentConnectivityOut: %s\n" % outConn)
             out.write("GLUE2ExecutionEnvironmentComputingManagerForeignKey: %s_Manager\n" % srvId)
