@@ -167,7 +167,7 @@ def main():
             out.write("GLUE2ExecutionEnvironmentVirtualMemorySize: %d\n" % virtSize)
             out.write("GLUE2ExecutionEnvironmentOSFamily: %s\n" % osType)
             out.write("GLUE2ExecutionEnvironmentOSName: %s\n" % osName)
-            out.write("GLUE2ExecutionEnvironmentOperatingSystemRelease: %s\n" % osVers)
+            out.write("GLUE2ExecutionEnvironmentOSVersion: %s\n" % osVers)
             out.write("GLUE2ExecutionEnvironmentConnectivityIn: %s\n" % inConn)
             out.write("GLUE2ExecutionEnvironmentConnectivityOut: %s\n" % outConn)
             out.write("GLUE2ExecutionEnvironmentComputingManagerForeignKey: %s_Manager\n" % srvId)
