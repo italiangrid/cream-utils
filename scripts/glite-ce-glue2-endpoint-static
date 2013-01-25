@@ -196,7 +196,7 @@ def main():
             'ifname' : 'org.ogf.glue.emies.activitymanagement',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
-            'jdescr' : '',
+            'jdescr' : 'emies:adl',
             'pubcomp' : True
         }
         
@@ -208,7 +208,7 @@ def main():
             'ifname' : 'org.ogf.glue.emies.delegation',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
-            'jdescr' : '',
+            'jdescr' : 'emies:adl',
             'pubcomp' : False
         }
 
@@ -220,7 +220,7 @@ def main():
             'ifname' : 'org.ogf.glue.emies.activityinfo',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
-            'jdescr' : '',
+            'jdescr' : 'emies:adl',
             'pubcomp' : True
         }
 
@@ -232,7 +232,7 @@ def main():
             'ifname' : 'org.ogf.glue.emies.resourceinfo',
             'profile' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
             'semantic' : 'https://twiki.cern.ch/twiki/bin/view/EMI/EmiExecutionService',
-            'jdescr' : '',
+            'jdescr' : 'emies:adl',
             'pubcomp' : False
         }
 
