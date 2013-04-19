@@ -1,0 +1,56 @@
+Summary: Tools and utilities for the CREAM service
+Name: glite-ce-cream-utils
+Version: @PKGVERSION@
+Release: @PKGRELEASE@
+License: Apache Software License
+Vendor: EMI
+URL: http://glite.cern.ch/
+Group: System Environment/Libraries
+BuildArch: %{_arch}
+BuildRequires: cmake, docbook-style-xsl, libxslt
+Obsoletes: lcg-info-dynamic-software
+Provides: lcg-info-dynamic-software
+BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
+AutoReqProv: yes
+Source: %{name}.tar.gz
+
+%global debug_package %{nil}
+
+%description
+This package contains a set of executables called by the CREAM service
+
+%prep
+ 
+%setup -c -q
+
+%build
+cmake -DCMAKE_INSTALL_PREFIX:string=%{buildroot} %{_builddir}/%{name}-%{version}
+make
+
+%install
+rm -rf %{buildroot}
+mkdir -p %{buildroot}
+make install
+ln -sf /usr/libexec/glite-ce-glue1-applicationsoftware-env %{buildroot}/usr/libexec/lcg-info-dynamic-software
+
+
+%clean
+rm -rf %{buildroot}
+
+%files
+%defattr(-,root,root)
+%dir /etc/glite-ce-glue2/
+%config(noreplace) /etc/glite-ce-glue2/glite-ce-glue2.conf.template
+%dir /etc/glite-ce-dbtool
+%config(noreplace) /etc/glite-ce-dbtool/creamdb_min_access.conf.template
+%dir /etc/%{name}
+%config(noreplace) /etc/%{name}/glite_cream_load_monitor.conf
+/usr/bin/*
+/usr/libexec/*
+%attr(750,root,root) /usr/sbin/JobDBAdminPurger.sh
+%doc /usr/share/man/man1/*.1.gz
+
+%changelog
+* Fri Aug 31 2012 CREAM group <cream-support@lists.infn.it> - @PKGVERSION@-@PKGRELEASE@
+- New major release
+

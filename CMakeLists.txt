@@ -20,6 +20,26 @@
 project(cream-utils CXX)
 cmake_minimum_required(VERSION 2.6)
 
+set(PKGNAME glite-ce-cream-utils)
+set(PKGVER 1.3.2)
+set(PKGREL 1)
+
+set(ITEMS_FOR_SOURCE CMakeLists.txt config doc scripts src)
+
+add_custom_target(rpm 
+                  COMMAND mkdir -p ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/BUILD
+                                   ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/RPMS
+                                   ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/SOURCES
+                                   ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/SPECS
+                                   ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/SRPMS
+                  COMMAND tar -zcf ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/SOURCES/${PKGNAME}.tar.gz ${ITEMS_FOR_SOURCE}
+                  COMMAND sed -e 's|@PKGVERSION@|${PKGVER}|g'
+                              -e 's|@PKGRELEASE@|${PKGREL}|g' 
+                              project/${PKGNAME}.spec.in > ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/SPECS/${PKGNAME}.spec
+                  COMMAND rpmbuild -ba --define '_topdir ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild'
+                          ${CMAKE_CURRENT_BINARY_DIR}/rpmbuild/SPECS/${PKGNAME}.spec
+                  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR})
+
 add_subdirectory(src)
 add_subdirectory(scripts)
 add_subdirectory(doc)
