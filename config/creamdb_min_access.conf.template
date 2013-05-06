@@ -1,0 +1,4 @@
+DBHost=localhost
+CreamDBName=creamdb
+MinPrivDBUser=SetThisToAUser
+MinPrivDBPassword=SetThisToAPassword

@@ -1,0 +1,189 @@
+# Site Id
+SiteId = 
+#
+#
+# Computing Service Id
+# Provided by yaim variable COMPUTING_SERVICE_ID (required if we are in 
+# cluster mode)
+# Otherwise use hostname + the "_ComputingElement" string
+ComputingServiceId = 
+#
+#
+# NumberOfEndPointType
+# 2 (CREAM-CE + RTEpublisher) if CEMon is deployed
+# 3 otherwise
+NumberOfEndPointType=
+#
+#
+# ImplementationVersion is the version of the CREAM service
+ImplementationVersion=
+#
+#
+# InterfaceVersion is the version of the Service interface
+InterfaceVersion=
+#
+#
+# HealthStateHelper should be the full pathname of the 
+# glite-info-service-test plus CREAM as argument
+HealthStateHelper = 
+#
+#
+# ServingState of the Computing Element. 
+# It should be usually set to Production
+ServingState =
+#
+#
+# Owner should be the list of owner VO names
+Owner = 
+#
+#
+# Argus is yes if this CREAM CE is using Argus as authorization mechanism
+Argus = 
+#
+#
+# ACBR should be the list of AccessControlBaseRule strings to indicate who 
+# is allowed to have access to the service - at the simplest this is the 
+# same as the Owner but with the VO names prefixed by "VO:"
+ACBR = 
+#
+#
+# Shares. The list of shares. Basically a share per VOview
+# Format: Shares = (share1, share2, ..., sharen)
+Shares =
+#
+#
+# Information about shares
+# For each one define the queue name, the ACBRs, the owner, the connected 
+# endpints, ceids and execution environments
+SHARE_<ShareId>_QUEUENAME=
+SHARE_<ShareId>_OWNER=
+SHARE_<ShareId>_ENDPOINTS=
+SHARE_<ShareId>_EXECUTIONENVIRONMENTS=
+SHARE_<ShareId>_ACBRS=
+SHARE_<ShareId>_CEIDS=
+#
+#
+# ExecutionEnvironments
+# The list of the ids of the Execution Environments
+# Format: ExecutionEnvironments = (EE1, EE2, ..., EEn)
+ExecutionEnvironments = 
+#
+#
+# CE_BATH_SYS is the batch system used by the CE. E.g. torque, lsf, etc
+# It should be filled with the content of yaim variable CE_BATCH_SYS
+CE_BATCH_SYS = 
+#
+#
+# BATCH_VERSION is the Version of the batch system
+# It should be filled with the content of yaim variable BATCH_VERSION
+BATCH_VERSION = 
+#
+#
+# ArchitecturePlatformType is the Platform Type of the WNs of the 
+# specified EE
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_OS_ARCH
+ExecutionEnvironment_<EEId>_ArchitecturePlatformType = 
+#
+# 
+# PhysicalCPUs is the total number of real CPUs/physical chips, including 
+# the nodes that are temporary down or offline 
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_PHYSCPU
+ExecutionEnvironment_<EEId>_PhysicalCPUs = 
+#
+#
+# LogicalCPUs is the total number of cores/hyperthreaded CPUs, including the 
+# nodes that are temporary down or offline
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_LOGCPU
+ExecutionEnvironment_<EEId>_LogicalCPUs =
+#
+#
+# SmpSize is the number of Logical CPUs (cores) of the WN
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_SMPSIZE 
+ExecutionEnvironment_<EEId>_SmpSize = 
+#
+# 
+# ProcessorVendor is the name of the processor vendor for the Worker Nodes
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_CPU_VENDOR
+ExecutionEnvironment_<EEId>_ProcessorVendor = 
+#
+#
+# ProcessorModel is the name of the processor model as defined by the vendor 
+# for the Worker Nodes
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_CPU_MODEL
+ExecutionEnvironment_<EEId>_ProcessorModel = 
+#
+#
+# ProcessorClockSpeed is the processor clock speed expressed in MHz for the 
+# Worker Nodes 
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_CPU_SPEED
+ExecutionEnvironment_<EEId>_ProcessorClockSpeed = 
+#
+#
+# Cores is the number of cores per CPU of the Worker Nodes
+# It must be set for all the Execution Environments
+ExecutionEnvironment__<EEId>_Cores = 
+#
+#
+# MainMemoryRAMSize is the total physical memory of a WN expressed in MegaBytes
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_MINPHYSMEM 
+ExecutionEnvironment_<EEId>_MainMemoryRAMSize = 
+#
+#
+# MainMemoryVirtualSize is the total virtual memory of a WN expressed in 
+# MegaBytes.
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_MINVIRTMEM
+ExecutionEnvironment_<EEId>_MainMemoryVirtualSize = 
+#
+# 
+# OperatingSystemFamily should be filled with the OS family (e.g. linux)
+# It must be set for all the Execution Environments
+ExecutionEnvironment_<EEId>_OperatingSystemFamily = 
+#
+# 
+# OperatingSystemName is the name of the operating system used on the Worker 
+# Nodes 
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_OS
+ExecutionEnvironment_<EEId>_OperatingSystemName = 
+#
+# 
+# OperatingSystemRelease is the release of the operating system used on the 
+# Worker Nodes
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_OS_RELEASE
+ExecutionEnvironment_<EEId>_OperatingSystemRelease = 
+# 
+#
+# NetworkAdapterInboundIP must be set to either FALSE or TRUE to express the 
+# permission for inbound connectivity for the WNs
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_INBOUNDIP
+ExecutionEnvironment_<EEId>_NetworkAdapterInboundIP = 
+#
+#
+# NetworkAdapterOutboundIP must be set to either FALSE or TRUE to express 
+# the permission for outbound connectivity for the WNs
+# It must be set for all the Execution Environments
+# It should be filled with the content of yaim variable CE_OUTBOUNDIP
+ExecutionEnvironment_<EEId>_NetworkAdapterOutboundIP = 
+#
+#
+# Benchmarks is the list of benchmarks
+# Format: Benchmarks = (Benchmark1, Benchmark2, .., Benchmarkn)
+# Format of Benchmarki: (Type Value)
+ExecutionEnvironment_<EEId>_Benchmarks =
+#
+#
+# CloseSEs is the list of the storage services close to this computing service
+# Format: CloseSEs = (closeSE1, closeSE2, ..., closeSEn)
+# Format of closeSEi: (StorageServiceid LocalPath RemotePath)
+CloseSEs = 
