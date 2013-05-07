@@ -19,19 +19,19 @@
 
 set(CMAKE_CXX_FLAGS_DEBUG "-g -Wall")
 
-add_executable(glite_ce_cream_purge_proxy glite-ce-cream-purge-proxy.cpp)
+add_executable(glite-ce-cream-purge-proxy glite-ce-cream-purge-proxy.cpp)
 
-add_executable(glite_ce_cream_purge_sandbox glite-ce-cream-purge-sandbox.cpp)
+add_executable(glite-ce-cream-purge-sandbox glite-ce-cream-purge-sandbox.cpp)
 
-add_executable(glite_cream_createsandboxdir glite-cream-createsandboxdir.cpp)
+add_executable(glite-cream-createsandboxdir glite-cream-createsandboxdir.cpp)
 
-add_executable(glite_ce_cream_create_wrapper glite-ce-cream-create-wrapper.cpp)
+add_executable(glite-ce-cream-create-wrapper glite-ce-cream-create-wrapper.cpp)
 
 
-install(TARGETS glite_ce_cream_purge_sandbox
-                glite_cream_createsandboxdir
-                glite_ce_cream_create_wrapper
-                glite_ce_cream_purge_proxy
+install(TARGETS glite-ce-cream-purge-sandbox
+                glite-cream-createsandboxdir
+                glite-ce-cream-create-wrapper
+                glite-ce-cream-purge-proxy
         RUNTIME DESTINATION usr/bin)
 
 
