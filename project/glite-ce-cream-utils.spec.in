@@ -58,10 +58,10 @@ rm -rf %{buildroot}
 %package -n lcg-info-dynamic-software
 Summary: Information provider for software tag publication
 Group: System Environment/Libraries
+BuildArch: noarch
 
 %description -n lcg-info-dynamic-software
-Information provider used for the publication of VO specific
-software tag
+Information provider used for the publication of VO specific software tag
 
 %files -n lcg-info-dynamic-software
 %defattr(-,root,root)
