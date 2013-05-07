@@ -184,7 +184,7 @@ if (my $ev = new FileHandle $emiversion) {
 
 
 # Endpoint URL of the CREAM CE
-my $Endpoint = "https://" . $host . "8443/ce-cream/services";
+my $Endpoint = "https://" . $host . ":8443/ce-cream/services";
 print "GLUE2EndpointURL: $Endpoint\n";
 
 # Capability of the endpoint

@@ -46,6 +46,7 @@ my %config = (
         ComputingServiceId => '',
         CE_BATCH_SYS => '',
         BATCH_VERSION => '',
+        CECapabilities => ''
 	      );
 
 if ($ARGV[0]){
@@ -110,6 +111,25 @@ print "GLUE2EntityName: Computing Manager on $host\n";
 print "GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-manager-static\n";
 print "GLUE2EntityOtherInfo: InfoProviderVersion=$version\n";
 print "GLUE2EntityOtherInfo: InfoProviderHost=$host\n";
+
+# Insert CE capability list
+
+my $capabilities = $config{CECapabilities};
+
+$capabilities =~ s/^\s*\(//;
+$capabilities =~ s/\)\s*$//;
+
+my @capalist = split /,/, $capabilities;
+foreach my $capaitem (@capalist)
+{
+    $capaitem =~ s/^\s+//;
+    $capaitem =~ s/\s+$//;
+    $capaitem =~ s/^\"//;
+    $capaitem =~ s/\"$//;
+    
+    print "GLUE2EntityOtherInfo: $capaitem\n";
+}
+
 
 # ProductName
 my $GLUE2ManagerProductName = $config{CE_BATCH_SYS};

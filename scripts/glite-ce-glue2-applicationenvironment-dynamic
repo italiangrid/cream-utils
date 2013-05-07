@@ -105,11 +105,11 @@ close (LDIF);
 foreach my $sc ( keys %subclusters ) {
   # Readin in $edgpath
     foreach my $tag ( &tagsFromDir($edgpath) ) {
-	$subclusters{$sc}{'tags'}{lc($tag)} = $tag ;
+	$subclusters{$sc}{'tags'}{$tag} = $tag ;
     }
   # Readin from $glitepath
     foreach my $tag ( &tagsFromDir("$glitepath/$sc") ) {
-	$subclusters{$sc}{'tags'}{lc($tag)} = $tag ;
+	$subclusters{$sc}{'tags'}{$tag} = $tag ;
     }
 }
 
