@@ -55,6 +55,18 @@ rm -rf %{buildroot}
 %attr(750,root,root) /usr/sbin/JobDBAdminPurger.sh
 %doc /usr/share/man/man1/*.1.gz
 
+%package -n lcg-info-dynamic-software
+Summary: Information provider for software tag publication
+Group: System Environment/Libraries
+
+%description -n lcg-info-dynamic-software
+Information provider used for the publication of VO specific
+software tag
+
+%files -n lcg-info-dynamic-software
+%defattr(-,root,root)
+/usr/libexec/lcg-info-dynamic-software
+
 %changelog
 * Fri Aug 31 2012 CREAM group <cream-support@lists.infn.it> - @PKGVERSION@-@PKGRELEASE@
 - New major release

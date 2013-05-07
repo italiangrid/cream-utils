@@ -27,6 +27,7 @@ install(FILES ${CMAKE_SOURCE_DIR}/scripts/glite-ce-glue2-computingservice-static
               ${CMAKE_SOURCE_DIR}/scripts/glite-ce-glue2-tostorageservice-static
               ${CMAKE_SOURCE_DIR}/scripts/glite-ce-glue2-applicationenvironment-dynamic
               ${CMAKE_SOURCE_DIR}/scripts/glite-ce-check-submission-state
+              ${CMAKE_SOURCE_DIR}/scripts/lcg-info-dynamic-software
         PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
                     GROUP_READ GROUP_EXECUTE
                     WORLD_READ WORLD_EXECUTE

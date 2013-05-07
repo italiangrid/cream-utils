@@ -1,0 +1,107 @@
+#!/usr/bin/perl -w
+
+use strict;
+
+my $edgpath   = "/opt/edg/var/info";
+my $glitepath = "/opt/glite/var/info" ;
+
+
+die "Usage: $0 <ldif file>\n" unless ($ARGV[0])  ;
+
+# Holds all the data.
+#  $subclusters{<SubClusterUniqueId>}{'dn'} = <dn>
+#     Stores the DN per SubCluster.
+#  $subclusters{<SubClusterUniqueId>}{'tags'}{<tag>} = 1
+#     Stores the key value of a <tag> = 1 if present per SubCluster.
+
+my %subclusters ;
+
+
+#Read in SubClusters from the ldif file.
+#And also any static tags from these files.
+
+open (LDIF, $ARGV[0]) || die "Cannot open '$ARGV[0]': $!,";
+
+my $cid ;
+while (<LDIF>) {
+    chomp;
+    if (/dn:\s+GlueSubClusterUniqueID=([^,]*),.*$/){
+          $cid = $1 ;
+          $subclusters{$cid}{'dn'} = $_ ;
+    }
+    elsif (/^GlueHostApplicationSoftwareRunTimeEnvironment:\s+(.*)$/) {
+          if ( &checkTag($1, keys %{$subclusters{$cid}{'tags'}}) == 0 ) {
+            $subclusters{$cid}{'tags'}{$1} = 1 ;
+          }
+    }
+
+}
+close (LDIF);  
+
+# Read in tags from old edg location if there is one.
+# A little inefficent since reading files for every
+# SubCluster but we expect this to die anyway with
+# multiple subclusters.
+foreach my $sc ( keys %subclusters ) {
+
+  # Readin in $edgpath
+  foreach my $tag ( &tagsFromDir($edgpath) ) {
+    if ( &checkTag($tag, keys %{$subclusters{$sc}{'tags'}}) == 0 ) {
+      $subclusters{$sc}{'tags'}{$tag} = $tag ;
+    }
+     
+  }
+  # Readin from $glitepath
+  foreach my $tag ( &tagsFromDir("$glitepath/$sc") ) {
+    if ( &checkTag($tag, keys %{$subclusters{$sc}{'tags'}}) == 0 ) {
+      $subclusters{$sc}{'tags'}{$tag} = $tag ;
+    }
+  } 
+}
+
+
+# Finally dump the output.
+foreach my $sc ( keys %subclusters ) {
+  print $subclusters{$sc}{'dn'}."\n" ;
+  foreach my $tag ( sort keys %{$subclusters{$sc}{'tags'}} ) {
+     print "GlueHostApplicationSoftwareRunTimeEnvironment: $tag\n"  ;
+  }
+  print "\n" ;
+}
+
+# The End.
+
+sub checkTag() {
+    my $ptag = lc(shift) ;
+    foreach my $tmptag ( @_ ) {
+        if ($ptag eq lc($tmptag)) {
+            return 1 ;
+        }
+    }
+    return 0 ;
+}
+
+# Take a directory d and look for d/<vo>/<vo>.list files.
+# Return an array of them.
+
+sub tagsFromDir() {
+   my $d =  shift ;
+   my @tags ;
+   opendir (DIR, $d) or return @tags ;
+   my @contents = readdir (DIR) or return @tags ;
+   foreach my $f ( @contents ) {
+       next if ($f eq "." or $f eq "..");
+       if ( -r "$d/$f/$f.list" ) {
+          open(TAGS,"$d/$f/$f.list")  ;
+          while(<TAGS>) {
+              chomp;
+              # https://savannah.cern.ch/bugs/?59871
+              #Split on new lines.
+              push(@tags,split('\s+',$_))  if $_ =~ m/\S+/ ;
+          }
+      
+       }
+   }
+   return @tags ;
+}
+
