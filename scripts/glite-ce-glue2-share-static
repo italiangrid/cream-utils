@@ -152,6 +152,8 @@ def main():
             out.write("GLUE2ComputingShareDefaultWallTime: 999999999\n")
             out.write("GLUE2ComputingShareMaxWallTime: 999999999\n")
             out.write("GLUE2ComputingShareMaxRunningJobs: 999999999\n")
+            out.write("GLUE2ComputingShareMaxTotalJobs: 999999999\n")
+            out.write("GLUE2ComputingShareMaxWaitingJobs: 999999999\n")
             out.write("GLUE2ComputingShareRunningJobs: 0\n")
             out.write("GLUE2ComputingShareTotalJobs: 0\n")
             out.write("GLUE2ComputingShareFreeSlots: 0\n")
