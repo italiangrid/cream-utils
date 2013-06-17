@@ -260,9 +260,9 @@ def main():
             out.write("GLUE2EntityOtherInfo: MiddlewareName=EMI\n")
             out.write("GLUE2EntityOtherInfo: MiddlewareVersion=%s\n" % EMIVersion)
         if config["Argus"] == "yes":
-            out.write("GLUE2EntityOtherInfo: This CREAM-CE is using Argus\n")
+            out.write("GLUE2EntityOtherInfo: ArgusEnabled=TRUE\n")
         else:
-            out.write("GLUE2EntityOtherInfo: This CREAM-CE is not using Argus\n")
+            out.write("GLUE2EntityOtherInfo: ArgusEnabled=FALSE\n")
     
         out.write("Glue2EndpointStartTime: %s\n" % now)
         out.write("GLUE2EndpointID: %s\n" % endPointID)

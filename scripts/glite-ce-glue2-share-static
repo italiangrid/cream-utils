@@ -180,6 +180,9 @@ def main():
             out.write("objectClass: GLUE2Policy\n")
             out.write("objectClass: GLUE2MappingPolicy\n")
             out.write("GLUE2EntityCreationTime: %s\n" % now)
+            out.write("GLUE2EntityOtherInfo: InfoProviderName=glite-ce-glue2-share-static\n")
+            out.write("GLUE2EntityOtherInfo: InfoProviderVersion=%s\n" % infoprovVersion)
+            out.write("GLUE2EntityOtherInfo: InfoProviderHost=%s\n" % hostname)
 
             out.write("GLUE2PolicyID: %s_policy\n" % shareId)
             out.write("GLUE2PolicyScheme: org.glite.standard\n")
