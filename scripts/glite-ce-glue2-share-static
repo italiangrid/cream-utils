@@ -154,12 +154,18 @@ def main():
             out.write("GLUE2ComputingShareMaxRunningJobs: 999999999\n")
             out.write("GLUE2ComputingShareMaxTotalJobs: 999999999\n")
             out.write("GLUE2ComputingShareMaxWaitingJobs: 999999999\n")
+            out.write("GLUE2ComputingShareMaxSlotsPerJob: 444444\n")
             out.write("GLUE2ComputingShareRunningJobs: 0\n")
             out.write("GLUE2ComputingShareTotalJobs: 0\n")
             out.write("GLUE2ComputingShareFreeSlots: 0\n")
+            out.write("GLUE2ComputingShareUsedSlots: 0\n")
             out.write("GLUE2ComputingShareWaitingJobs: 444444\n")
             out.write("GLUE2ComputingShareEstimatedAverageWaitingTime: 2146660842\n")
             out.write("GLUE2ComputingShareEstimatedWorstWaitingTime: 2146660842\n")
+            out.write("GLUE2ComputingShareMaxMainMemory: 444444\n")
+            out.write("GLUE2ComputingShareMaxVirtualMemory: 444444\n")
+            out.write("GLUE2ComputingShareGuaranteedMainMemory: 0\n")
+            out.write("GLUE2ComputingShareGuaranteedVirtualMemory: 0\n")
             if len(envList) > 0:
                 out.write("GLUE2ComputingShareExecutionEnvironmentForeignKey: %s\n" % envList[0].strip())
             for epItem in epList:
