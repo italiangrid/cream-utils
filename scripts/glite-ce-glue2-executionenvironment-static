@@ -171,6 +171,7 @@ def main():
             out.write("GLUE2ExecutionEnvironmentConnectivityIn: %s\n" % inConn)
             out.write("GLUE2ExecutionEnvironmentConnectivityOut: %s\n" % outConn)
             out.write("GLUE2ExecutionEnvironmentComputingManagerForeignKey: %s_Manager\n" % srvId)
+            out.write("GLUE2ExecutionEnvironmentCPUTimeScalingFactor: 1\n")
             out.write("\n")    
 
 
