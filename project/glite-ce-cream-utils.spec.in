@@ -1,7 +1,7 @@
 Summary: Tools and utilities for the CREAM service
 Name: glite-ce-cream-utils
 Version: @PKGVERSION@
-Release: @PKGRELEASE@
+Release: @PKGRELEASE@%{?dist}%{!?dist:.el5}
 License: Apache Software License
 Vendor: EMI
 URL: http://glite.cern.ch/
