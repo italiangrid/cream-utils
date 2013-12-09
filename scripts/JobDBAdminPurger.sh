@@ -40,6 +40,7 @@ classPath=${classPath}:/usr/share/java/voms-api-java3.jar
 classPath=${classPath}:/usr/share/java/jakarta-commons-httpclient.jar
 classPath=${classPath}:/usr/share/java/mysql-connector-java.jar
 classPath=${classPath}:/usr/share/java/servlet.jar
+classPath=${classPath}:/usr/share/java/canl.jar
 
 if [ $tomcat_version == "tomcat6" ];then
     classPath_Tomcat=/usr/share/java/commons-logging.jar
@@ -47,14 +48,12 @@ if [ $tomcat_version == "tomcat6" ];then
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/commons-pool.jar
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/log4j.jar
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/bcprov.jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/canl.jar
 else
     classPath_Tomcat=$CATALINA_HOME/common/lib/[commons-dbcp].jar
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/common/lib/[commons-pool].jar
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/[commons-logging].jar
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/[log4j].jar
     classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/[bcprov].jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/canl.jar
 fi
 
 classPath=$classPath:$classPath_Tomcat
