@@ -21,8 +21,8 @@ project(cream-utils CXX)
 cmake_minimum_required(VERSION 2.6)
 
 set(PKGNAME glite-ce-cream-utils)
-set(PKGVER 1.3.2)
-set(PKGREL 2)
+set(PKGVER 1.3.3)
+set(PKGREL 1)
 
 set(ITEMS_FOR_SOURCE CMakeLists.txt config doc scripts src)
 
