@@ -18,7 +18,7 @@
 
 delegation_proxy_id=$1
 delegation_proxy_path_dest=$2
-isRFC=$3
+#isRFC=$3
 
 fileNamePath=${delegation_proxy_path_dest}/${delegation_proxy_id}
 
@@ -26,23 +26,5 @@ umask 077
 /bin/mkdir -p $delegation_proxy_path_dest
 chmod 0300 $delegation_proxy_path_dest
 
-cat > $fileNamePath.$$
-
-rfcoption=""
-if [ $isRFC -eq 1 ] ; then
-  rfcoption="-rfc"
-fi 
-
-secondsLeft=`/usr/bin/grid-proxy-info -timeleft -f $fileNamePath.$$`
-if [ $? -eq 0 ] ; then
-  let "hours=$secondsLeft/3600"
-  let "minutes=((secondsLeft%3600)/60)"
-  /usr/bin/voms-proxy-init $rfcoption -limited -valid $hours:$minutes -cert $fileNamePath.$$ -key $fileNamePath.$$ -out $fileNamePath.lmt
-else
-  /usr/bin/voms-proxy-init $rfcoption -limited -cert $fileNamePath.$$ -key $fileNamePath.$$ -out $fileNamePath.lmt
-fi
-
-
-mv $fileNamePath.lmt $fileNamePath
-rm $fileNamePath.$$
+cat > $fileNamePath
 
