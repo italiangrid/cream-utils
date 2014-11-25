@@ -61,6 +61,8 @@ def main():
             config["NumberOfEndPointType"] = 2
         if not "ESComputingServiceId" in config and config["EMIES"] == "yes":
             config["ESComputingServiceId"] = hostname + "_ESComputingElement"
+        if not "QualityLevel" in config:
+            config["QualityLevel"] = "production"
     
     
     except Exception, ex:
@@ -129,7 +131,7 @@ def main():
         out.write("GLUE2ServiceType: %s\n" % srvDefs['type'])
         for capaItem in srvDefs['capabilities']:
             out.write("GLUE2ServiceCapability: %s\n" % capaItem)
-        out.write("GLUE2ServiceQualityLevel: production\n")
+        out.write("GLUE2ServiceQualityLevel: %s\n" % config["QualityLevel"])
         out.write("GLUE2ServiceComplexity: endpointType=%d, share=%d, resource=%d\n"
                    % (endpointCount, shareCount, resourceCount))
         out.write("GLUE2ServiceAdminDomainForeignKey: %s\n" % config['SiteId'])
