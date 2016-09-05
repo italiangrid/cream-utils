@@ -21,7 +21,7 @@ import socket
 import time
 import shlex
 import subprocess
-import glob
+import os.path
 
 def trunc(inStr):
     tmps = inStr.strip()
@@ -75,7 +75,22 @@ def _servingState(code):
         return 'draining'
     return 'closed'
 
+class CodedError:
 
+    def __init__(self, code, err):
+        self.code = code
+        self.error = err
+
+def _run_command(cmd):
+    #
+    # TODO implement pipeline
+    #
+    cmdargs = shlex.split(cmd)
+    process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    pOut, pErr = process.communicate()
+    if process.returncode > 0:
+        raise CodedError(process.returncode, pOut + pErr)
+    return pOut
 
 
 
@@ -120,24 +135,26 @@ def main():
     starttime = ''
     try:
 
-        tmpl = glob.glob("/etc/tomcat?")
-        if len(tmpl) <> 1:
-            raise Exception("Cannot detect tomcat installation")
-        tomcatName = tmpl[0][5:]
-        
-        statusProbes = ['/sbin/service %s status' % tomcatName]
         if 'HealthStateHelper' in config:
-            statusProbes.append(config['HealthStateHelper'])
-        
-        for probe in statusProbes:
-            cmdargs = shlex.split(probe)
-            process = subprocess.Popen(cmdargs, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            pOut, pErr = process.communicate()
-            healthStateInfo = healthStateInfo + pOut + pErr
-            if process.returncode > 0:
-                healthStateCode = process.returncode
-                break
-        
+            healthStateInfo = _run_command(config['HealthStateHelper'])
+            
+        if not healthStateInfo:
+
+            tomcatName = 'tomcat'
+            if os.path.exists('/etc/tomcat5'):
+                tomcatName = 'tomcat5'
+            elif os.path.exists('/etc/tomcat6'):
+                tomcatName = 'tomcat6'
+            elif os.path.exists('/etc/tomcat7'):
+                tomcatName = 'tomcat7'
+            
+            if os.path.exists('/usr/bin/systemctl'):
+                tmps = _run_command('/usr/bin/systemctl -p ActiveState show %s' % tomcatName)
+                healthStateInfo = tmps.split('=')[1]
+            elif os.path.exists('/sbin/service'):
+                tmps = _run_command('/sbin/service %s status' % tomcatName)
+                healthStateInfo = 'running' if 'running' in tmps else 'stopped'
+                    
         sqlTpl = 'mysql -B --skip-column-names -h %s -u %s --password="%s" -e "use %s; %s;"' \
                  % (dbconfig['DBHost'], dbconfig['MinPrivDBUser'], 
                     dbconfig['MinPrivDBPassword'], dbconfig['CreamDBName'], '%s')
@@ -160,7 +177,10 @@ def main():
         if process.returncode > 0:
             raise Exception("Error detecting start time: " + pErr)
         starttime = pOut.strip().replace(' ', 'T') + 'Z'
-        
+    
+    except CodedError, cErr:
+        healthStateCode = cErr.code
+        healthStateInfo = cErr.error
     except Exception, ex:
         etype, evalue, etraceback = sys.exc_info()
         sys.excepthook(etype, evalue, etraceback)
@@ -238,7 +258,8 @@ def main():
         if len(srvDefs['hinfo']):
             out.write("GLUE2EndpointHealthStateInfo: %s\n" % srvDefs['hinfo'])
         out.write("GLUE2EndpointServingState: %s\n" % srvDefs['sstate'])
-        out.write("GLUE2EndpointStartTime: %s\n" % srvDefs['stime'])
+        if srvDefs['stime']:
+            out.write("GLUE2EndpointStartTime: %s\n" % srvDefs['stime'])
         out.write("\n")
 
 
