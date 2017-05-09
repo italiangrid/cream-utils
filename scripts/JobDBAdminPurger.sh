@@ -16,19 +16,6 @@
 #  See the License for the specific language governing permissions and 
 #  limitations under the License.
 
-if [ -z "${CATALINA_HOME}" ]; then
-  echo "CATALINA_HOME must be set!"
-  exit -1
-fi
-
-tomcat_version=""
-for i in /etc/tomcat*; do
-  if [ -d "$i" ]; then
-     tomcat_version=`echo $i | sed -e 's/\/etc\///'`
-     break
-  fi
-done
-
 classPath=/usr/share/java/glite-ce-cream-clients.jar
 classPath=${classPath}:/usr/share/java/glite-ce-common-java.jar
 classPath=${classPath}:/usr/share/java/glite-ce-cream-api-java.jar
@@ -36,27 +23,38 @@ classPath=${classPath}:/usr/share/java/glite-ce-cream-blahExecutor.jar
 classPath=${classPath}:/usr/share/java/glite-ce-cream-core.jar
 classPath=${classPath}:/usr/share/java/argus-pep-api-java.jar
 classPath=${classPath}:/usr/share/java/argus-pep-common.jar
-classPath=${classPath}:/usr/share/java/voms-api-java3.jar
-classPath=${classPath}:/usr/share/java/jakarta-commons-httpclient.jar
+if [ -e /usr/share/java/voms-api-java/voms-api-java.jar ] ; then
+    classPath=${classPath}:/usr/share/java/voms-api-java/voms-api-java.jar
+fi
+if [ -e /usr/share/java/voms-api-java3.jar ] ; then
+    classPath=${classPath}:/usr/share/java/voms-api-java3.jar
+fi
+if [ -e /usr/share/java/canl.jar ] ; then
+    classPath=${classPath}:/usr/share/java/canl.jar
+fi
+if [ -e /usr/share/java/canl-java/canl.jar ] ; then
+    classPath=${classPath}:/usr/share/java/canl-java/canl.jar
+fi
+if [ -e /usr/share/java/jakarta-commons-httpclient.jar ] ; then
+    classPath=${classPath}:/usr/share/java/jakarta-commons-httpclient.jar
+fi
 classPath=${classPath}:/usr/share/java/mysql-connector-java.jar
 classPath=${classPath}:/usr/share/java/servlet.jar
-classPath=${classPath}:/usr/share/java/canl.jar
-
-if [ $tomcat_version == "tomcat6" ];then
-    classPath_Tomcat=/usr/share/java/commons-logging.jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/commons-dbcp.jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/commons-pool.jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/log4j.jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/lib/bcprov.jar
-else
-    classPath_Tomcat=$CATALINA_HOME/common/lib/[commons-dbcp].jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/common/lib/[commons-pool].jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/[commons-logging].jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/[log4j].jar
-    classPath_Tomcat=${classPath_Tomcat}:$CATALINA_HOME/server/lib/[bcprov].jar
+classPath=${classPath}:/usr/share/java/commons-logging.jar
+if [ -e /usr/share/java/apache-commons-dbcp.jar ] ; then
+    classPath=${classPath}:/usr/share/java/apache-commons-dbcp.jar
 fi
-
-classPath=$classPath:$classPath_Tomcat
+if [ -e /usr/share/java/commons-dbcp.jar ] ; then
+    classPath=${classPath}:/usr/share/java/commons-dbcp.jar
+fi
+if [ -e /usr/share/java/apache-commons-pool.jar ] ; then
+    classPath=${classPath}:/usr/share/java/apache-commons-pool.jar
+fi
+if [ -e /usr/share/java/commons-pool.jar ] ; then
+    classPath=${classPath}:/usr/share/java/commons-pool.jar
+fi
+classPath=${classPath}:/usr/share/java/log4j.jar
+classPath=${classPath}:/usr/share/java/bcprov.jar
 
 if [ -e /etc/glite-ce-cream/log4j.properties ] ; then
     java -cp $classPath -Dlog4j.configuration=/etc/glite-ce-cream/log4j.properties org.glite.ce.cream.client.JobDBAdminPurger $@
