@@ -23,12 +23,14 @@ classPath=${classPath}:/usr/share/java/glite-ce-cream-blahExecutor.jar
 classPath=${classPath}:/usr/share/java/glite-ce-cream-core.jar
 classPath=${classPath}:/usr/share/java/argus-pep-api-java.jar
 classPath=${classPath}:/usr/share/java/argus-pep-common.jar
+# VOMS libs ###########################
+if [ -e /usr/share/java/voms-api-java.jar ] ; then
+    classPath=${classPath}:/usr/share/java/voms-api-java.jar
+fi
 if [ -e /usr/share/java/voms-api-java/voms-api-java.jar ] ; then
     classPath=${classPath}:/usr/share/java/voms-api-java/voms-api-java.jar
 fi
-if [ -e /usr/share/java/voms-api-java3.jar ] ; then
-    classPath=${classPath}:/usr/share/java/voms-api-java3.jar
-fi
+# CANL libs ###########################
 if [ -e /usr/share/java/canl.jar ] ; then
     classPath=${classPath}:/usr/share/java/canl.jar
 fi
@@ -38,6 +40,20 @@ fi
 if [ -e /usr/share/java/jakarta-commons-httpclient.jar ] ; then
     classPath=${classPath}:/usr/share/java/jakarta-commons-httpclient.jar
 fi
+# BC libs #############################
+if [ -e /usr/share/java/bcpkix-1.58.jar ] ; then
+    classPath=${classPath}:/usr/share/java/bcpkix-1.58.jar
+fi
+if [ -e /usr/share/java/bcprov-1.58.jar ] ; then
+    classPath=${classPath}:/usr/share/java/bcprov-1.58.jar
+fi
+if [ -e /usr/share/java/bcpkix.jar ] ; then
+    classPath=${classPath}:/usr/share/java/bcpkix.jar
+fi
+if [ -e /usr/share/java/bcprov.jar ] ; then
+    classPath=${classPath}:/usr/share/java/bcprov.jar
+fi
+# #####################################
 classPath=${classPath}:/usr/share/java/mysql-connector-java.jar
 classPath=${classPath}:/usr/share/java/servlet.jar
 classPath=${classPath}:/usr/share/java/commons-logging.jar
@@ -54,7 +70,6 @@ if [ -e /usr/share/java/commons-pool.jar ] ; then
     classPath=${classPath}:/usr/share/java/commons-pool.jar
 fi
 classPath=${classPath}:/usr/share/java/log4j.jar
-classPath=${classPath}:/usr/share/java/bcprov.jar
 
 if [ -e /etc/glite-ce-cream/log4j.properties ] ; then
     java -cp $classPath -Dlog4j.configuration=/etc/glite-ce-cream/log4j.properties org.glite.ce.cream.client.JobDBAdminPurger $@
